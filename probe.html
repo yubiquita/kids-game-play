@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+<title>じっきかくにん</title>
+<style>
+  html, body { margin: 0; height: 100%; overflow: hidden; touch-action: none; font-family: sans-serif; background: #8bc34a; }
+  canvas { display: block; }
+  #info { position: fixed; top: 8px; left: 8px; background: #fffc; padding: 8px 12px; border-radius: 8px; font-size: 18px; line-height: 1.6; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="info"></div>
+<script>
+  const KEY = 'kids-game-probe-count';
+  let count = 0, storageOk = true;
+  try {
+    count = Number(localStorage.getItem(KEY) || 0) + 1;
+    localStorage.setItem(KEY, String(count));
+  } catch (e) { storageOk = false; }
+
+  const c = document.getElementById('c'), ctx = c.getContext('2d'), info = document.getElementById('info');
+  let touch = null;
+
+  function resize() { c.width = innerWidth; c.height = innerHeight; draw(); }
+  function draw() {
+    ctx.fillStyle = '#8bc34a'; ctx.fillRect(0, 0, c.width, c.height);
+    ctx.font = '48px sans-serif'; ctx.fillText('🍔', 40, c.height - 40);
+    if (touch) { ctx.beginPath(); ctx.arc(touch.x, touch.y, 30, 0, Math.PI * 2); ctx.fillStyle = '#ff980099'; ctx.fill(); }
+    info.innerHTML =
+      '① ひらけた: OK<br>' +
+      '② タッチ: ' + (touch ? Math.round(touch.x) + ', ' + Math.round(touch.y) : 'まだ（がめんをさわってね）') + '<br>' +
+      '③ ほぞん: ' + (storageOk ? count + 'かいめ（さいよみこみで ふえればOK）' : 'つかえない') + '<br>' +
+      'がめん: ' + innerWidth + '×' + innerHeight;
+  }
+  c.addEventListener('pointerdown', e => { touch = { x: e.clientX, y: e.clientY }; draw(); });
+  c.addEventListener('pointermove', e => { if (touch) { touch = { x: e.clientX, y: e.clientY }; draw(); } });
+  addEventListener('resize', resize);
+  resize();
+</script>
+</body>
+</html>
