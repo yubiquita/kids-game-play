@@ -1,3 +1,1142 @@
-<!DOCTYPE html><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
 <title>けんちくけいゲーム</title>
-<p style="font-size:24px">じゅんびちゅう…<br><a href="probe.html">じっきかくにん</a></p>
+<style>
+html, body { margin: 0; height: 100%; overflow: hidden; background: #5d8a2f;
+  font-family: "Hiragino Maru Gothic ProN", "Rounded Mplus 1c", "Noto Sans JP", sans-serif;
+  -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; touch-action: none; }
+canvas { display: block; position: fixed; inset: 0; }
+#ui { position: fixed; inset: 0; pointer-events: none; }
+#ui > * { pointer-events: auto; }
+button { font: inherit; border: none; border-radius: 14px; background: #fff; color: #333;
+  box-shadow: 0 3px 0 #0003; padding: 8px 14px; font-size: 18px; cursor: pointer; touch-action: manipulation; }
+button:active { transform: translateY(2px); box-shadow: 0 1px 0 #0003; }
+button:disabled { opacity: .45; }
+
+.hud { position: absolute; top: max(8px, env(safe-area-inset-top)); left: max(8px, env(safe-area-inset-left));
+  right: max(8px, env(safe-area-inset-right)); display: flex; gap: 10px; align-items: center; pointer-events: none; }
+.hud > * { pointer-events: auto; }
+.pill { background: #fffe; border-radius: 14px; padding: 6px 12px; font-size: 20px; box-shadow: 0 2px 0 #0002; }
+.hunger { display: flex; align-items: center; gap: 6px; }
+.bar { width: 110px; height: 14px; background: #ddd; border-radius: 7px; overflow: hidden; }
+.bar > i { display: block; height: 100%; background: #ff9800; transition: width .3s; }
+.bar.empty > i { background: #e53935; }
+.spacer { flex: 1; }
+
+.actions { position: absolute; right: max(12px, env(safe-area-inset-right)); bottom: 16px;
+  display: flex; flex-direction: column; gap: 10px; align-items: flex-end; }
+.actions button { font-size: 22px; padding: 12px 18px; }
+
+.toast { position: absolute; top: 64px; left: 50%; transform: translateX(-50%); background: #fffe;
+  padding: 10px 18px; border-radius: 16px; font-size: 20px; box-shadow: 0 3px 0 #0003; white-space: nowrap;
+  pointer-events: none; }
+
+.palette { position: absolute; left: 50%; transform: translateX(-50%); bottom: 10px; display: flex; gap: 8px;
+  background: #fffc; padding: 8px; border-radius: 18px; }
+.palette button { display: flex; flex-direction: column; align-items: center; font-size: 26px; padding: 6px 10px; min-width: 64px; }
+.palette button small { font-size: 13px; }
+.palette button.on { background: #ffe082; outline: 3px solid #ff9800; }
+.swatch { width: 28px; height: 28px; border-radius: 6px; display: inline-block; }
+
+.job { position: absolute; inset: 8px; background: #fff8e1; border-radius: 22px; display: grid;
+  grid-template-columns: 1fr 1fr; grid-template-rows: 1fr auto; gap: 8px; padding: 12px; box-sizing: border-box; }
+.job .col { display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 4px; min-height: 0; }
+.job .title { font-size: 18px; margin-bottom: auto; }
+.job .customer { font-size: 44px; }
+.stack { display: flex; flex-direction: column-reverse; align-items: center; }
+.stack span { display: block; width: 110px; height: 26px; border-radius: 10px; margin-top: -2px;
+  display: flex; align-items: center; justify-content: center; font-size: 22px; box-shadow: inset 0 -3px 0 #0002; }
+.job .wait { font-size: 20px; color: #666; text-align: center; margin: auto; }
+.job .controls { grid-column: 1 / 3; display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+.job .controls button { font-size: 24px; padding: 10px 14px; }
+.job .controls .give { background: #66bb6a; color: #fff; }
+.job .controls .end { background: #eee; }
+.pop { position: absolute; left: 50%; top: 40%; transform: translate(-50%, -50%); font-size: 48px; font-weight: bold;
+  color: #fff; text-shadow: 0 0 6px #e65100, 0 2px 0 #e65100; white-space: nowrap;
+  animation: pop 1s ease-out forwards; pointer-events: none; }
+@keyframes pop { from { opacity: 1; transform: translate(-50%, -50%) scale(.6); }
+  to { opacity: 0; transform: translate(-50%, -130%) scale(1.2); } }
+
+.modal { position: absolute; inset: 0; background: #0006; display: flex; align-items: center; justify-content: center; }
+.modal .box { background: #fff; border-radius: 18px; padding: 18px; display: flex; flex-direction: column; gap: 10px; min-width: 260px; }
+
+.rotate { position: absolute; inset: 0; background: #5d8a2f; color: #fff; display: none;
+  align-items: center; justify-content: center; font-size: 28px; text-align: center; }
+@media (orientation: portrait) and (pointer: coarse) { .rotate { display: flex; } }
+</style>
+</head>
+<body>
+<canvas id="screen"></canvas>
+<div id="ui"></div>
+<script>
+// 数字はここに集める（設計書4節）。遊んでもらってから調整する
+(function (G) {
+  G.config = {
+    mapW: 40,
+    mapH: 40,
+    ownBed: { x: 20, y: 20 },     // 最初からある自分のベッド
+    startMoney: 10,
+    burgerPrice: 5,
+    hungerMax: 100,
+    tilesPerHunger: 5,             // 何マス歩くとおなかが1減るか
+    burgerHeal: 40,
+    hungrySpeedRate: 0.5,          // おなか0のときの速さの倍率
+    playerSpeed: 4,                // マス/秒
+    residentSpeed: 2.5,
+    residentHungerInterval: 120,   // 住人がおなかすく間隔（秒）
+    retryInterval: 8,              // お店に行けなかったときの再挑戦（秒）
+    queueMax: 3,
+    clerkServeTime: 3,             // 店員が1人に売る時間（秒）
+    orderStartLayers: 3,
+    orderMaxLayers: 6,
+    deliveriesPerLevel: 5,
+    stackMax: 8,
+    autosaveInterval: 10,
+    saveKey: 'kids-game-save',
+  };
+})(window.Game = window.Game || {});
+</script>
+<script>
+// 見た目の表。子どもの絵に差し替えるときはここだけ直す
+// emoji: 上に描く絵文字 / color: 下地の色 / shape: 'tile'（マスいっぱい）| 'none'
+(function (G) {
+  G.sprites = {
+    grass:   { color: '#8bc34a' },
+    floor:   { color: '#c8a26b', line: '#a9834f' },
+    wall:    { color: '#9e9e9e', line: '#757575' },
+    door:    { color: '#c8a26b', emoji: '🚪' },
+    bed:     { color: '#c8a26b', emoji: '🛏️' },
+    counter: { color: '#ff9800', line: '#e65100' },
+    clerk:   { emoji: '🧑‍🍳' },
+    player:  { emoji: '🧒' },
+    residentLooks: ['👩', '👨', '👵', '👴', '👧', '👦', '🧑', '👱'],
+    ingredients: {
+      bun:     { emoji: '🍞', color: '#e0a050', label: 'パン' },
+      patty:   { emoji: '🥩', color: '#6d3b1f', label: 'おにく' },
+      cheese:  { emoji: '🧀', color: '#ffd54f', label: 'チーズ' },
+      lettuce: { emoji: '🥬', color: '#66bb6a', label: 'レタス' },
+    },
+    burger:  { emoji: '🍔' },
+    coin:    { emoji: '🪙' },
+  };
+})(window.Game = window.Game || {});
+</script>
+<script>
+// まちのマス目。床（floor）と上のもの（obj: wall/door/bed/counter）を1マスに1つずつ
+(function (G) {
+  const BLOCKING = { wall: true, bed: true, counter: true };
+  const OBJECTS = ['wall', 'door', 'bed', 'counter'];
+
+  function create(w, h) {
+    return { w, h, floor: new Array(w * h).fill(0), obj: new Array(w * h).fill(null) };
+  }
+  const inBounds = (wd, x, y) => x >= 0 && y >= 0 && x < wd.w && y < wd.h;
+  const idx = (wd, x, y) => y * wd.w + x;
+  const key = (x, y) => x + ',' + y;
+  const parseKey = (k) => { const [x, y] = k.split(',').map(Number); return { x, y }; };
+
+  function objAt(wd, x, y) { return inBounds(wd, x, y) ? wd.obj[idx(wd, x, y)] : null; }
+  function hasFloor(wd, x, y) { return inBounds(wd, x, y) && wd.floor[idx(wd, x, y)] === 1; }
+
+  function isPassable(wd, x, y) {
+    if (!inBounds(wd, x, y)) return false;
+    const o = wd.obj[idx(wd, x, y)];
+    return !o || !BLOCKING[o.type];
+  }
+
+  // occupied: 人が立っているマスの key の Set
+  // 戻り値: null なら置ける。置けないときは理由
+  function canPlace(wd, x, y, kind, occupied) {
+    if (!inBounds(wd, x, y)) return 'outside';
+    const o = wd.obj[idx(wd, x, y)];
+    if (o && o.own) return 'ownBed';
+    if (kind === 'floor') return null;
+    if (OBJECTS.indexOf(kind) < 0) return 'unknown';
+    if (BLOCKING[kind] && occupied && occupied.has(key(x, y))) return 'occupied';
+    return null;
+  }
+
+  function place(wd, x, y, kind, occupied) {
+    const why = canPlace(wd, x, y, kind, occupied);
+    if (why) return { ok: false, why };
+    if (kind === 'floor') { wd.floor[idx(wd, x, y)] = 1; return { ok: true }; }
+    const prev = wd.obj[idx(wd, x, y)];
+    wd.obj[idx(wd, x, y)] = { type: kind };
+    return { ok: true, removed: prev };
+  }
+
+  // 上のものがあればそれを、なければ床を消す。自分のベッドは消せない
+  function erase(wd, x, y) {
+    if (!inBounds(wd, x, y)) return { ok: false, why: 'outside' };
+    const i = idx(wd, x, y), o = wd.obj[i];
+    if (o && o.own) return { ok: false, why: 'ownBed' };
+    if (o) { wd.obj[i] = null; return { ok: true, removed: o }; }
+    if (wd.floor[i]) { wd.floor[i] = 0; return { ok: true, removed: { type: 'floor' } }; }
+    return { ok: false, why: 'empty' };
+  }
+
+  function findAll(wd, type) {
+    const out = [];
+    for (let y = 0; y < wd.h; y++) for (let x = 0; x < wd.w; x++) {
+      const o = wd.obj[idx(wd, x, y)];
+      if (o && o.type === type) out.push({ x, y, own: !!o.own });
+    }
+    return out;
+  }
+
+  const DIRS = [[0, 1], [1, 0], [0, -1], [-1, 0]];
+  function passableNeighbors(wd, x, y) {
+    return DIRS.map(([dx, dy]) => ({ x: x + dx, y: y + dy })).filter(p => isPassable(wd, p.x, p.y));
+  }
+
+  G.world = { create, inBounds, key, parseKey, objAt, hasFloor, isPassable, canPlace, place, erase,
+    findAll, passableNeighbors, DIRS, BLOCKING };
+})(window.Game = window.Game || {});
+</script>
+<script>
+// 壁をよける道さがし（4方向の幅優先）。計算だけで画面には関わらない
+(function (G) {
+  // start: {x,y}、goals: key の Set。いちばん近いゴールまでの道（start を含まない）を返す。行けなければ null
+  function find(wd, start, goals) {
+    const W = G.world;
+    const sk = W.key(start.x, start.y);
+    if (goals.has(sk)) return [];
+    const prev = new Map([[sk, null]]);
+    const queue = [start];
+    for (let qi = 0; qi < queue.length; qi++) {
+      const cur = queue[qi];
+      for (const [dx, dy] of W.DIRS) {
+        const nx = cur.x + dx, ny = cur.y + dy, nk = W.key(nx, ny);
+        if (prev.has(nk) || !W.isPassable(wd, nx, ny)) continue;
+        prev.set(nk, cur);
+        if (goals.has(nk)) {
+          const path = [{ x: nx, y: ny }];
+          for (let p = cur; p && W.key(p.x, p.y) !== sk; p = prev.get(W.key(p.x, p.y))) path.unshift(p);
+          return path;
+        }
+        queue.push({ x: nx, y: ny });
+      }
+    }
+    return null;
+  }
+  const toKeys = (points) => new Set(points.map(p => G.world.key(p.x, p.y)));
+
+  // まちの端のマス（住人が出入りする場所）
+  function edgeKeys(wd) {
+    const s = new Set();
+    for (let x = 0; x < wd.w; x++) { s.add(G.world.key(x, 0)); s.add(G.world.key(x, wd.h - 1)); }
+    for (let y = 0; y < wd.h; y++) { s.add(G.world.key(0, y)); s.add(G.world.key(wd.w - 1, y)); }
+    return s;
+  }
+
+  G.pathfind = { find, toKeys, edgeKeys };
+})(window.Game = window.Game || {});
+</script>
+<script>
+// アルバイトの計算: 注文づくり・合っているかの判定・お金
+(function (G) {
+  const FILLINGS = ['patty', 'cheese', 'lettuce'];
+
+  function layersFor(deliveries) {
+    const c = G.config;
+    return Math.min(c.orderMaxLayers, c.orderStartLayers + Math.floor(deliveries / c.deliveriesPerLevel));
+  }
+
+  // 下と上はいつもパン。あいだは具をランダムに
+  function makeOrder(layers, rng) {
+    const order = ['bun'];
+    for (let i = 0; i < layers - 2; i++) order.push(FILLINGS[Math.floor(rng() * FILLINGS.length)]);
+    order.push('bun');
+    return order;
+  }
+
+  function addLayer(stack, item) {
+    if (stack.length >= G.config.stackMax) return false;
+    stack.push(item);
+    return true;
+  }
+  function removeLayer(stack) { return stack.pop(); }
+
+  function canDeliver(stack, order) {
+    return !!order && stack.length === order.length && stack.every((s, i) => s === order[i]);
+  }
+  const reward = (order) => order.length;
+
+  G.burgerJob = { FILLINGS, layersFor, makeOrder, addLayer, removeLayer, canDeliver, reward };
+})(window.Game = window.Game || {});
+</script>
+<script>
+// 自分の移動とおなかメーター
+(function (G) {
+  const R = 0.3; // 当たり判定の半径（マス）
+
+  function create() {
+    const c = G.config;
+    return { x: c.ownBed.x, y: c.ownBed.y + 1, money: c.startMoney, hunger: c.hungerMax, walked: 0, face: 1 };
+  }
+
+  const tile = (p) => ({ x: Math.round(p.x), y: Math.round(p.y) });
+
+  function speed(p) {
+    const c = G.config;
+    return c.playerSpeed * (p.hunger <= 0 ? c.hungrySpeedRate : 1);
+  }
+
+  function fits(wd, x, y) {
+    for (const cx of [x - R, x + R]) for (const cy of [y - R, y + R])
+      if (!G.world.isPassable(wd, Math.round(cx), Math.round(cy))) return false;
+    return true;
+  }
+
+  // vx, vy: 向き（長さ1まで）。歩いた分だけおなかが減る
+  function move(p, wd, vx, vy, dt) {
+    const len = Math.hypot(vx, vy);
+    if (len === 0) return;
+    if (len > 1) { vx /= len; vy /= len; }
+    const s = speed(p) * dt;
+    const ox = p.x, oy = p.y;
+    if (fits(wd, p.x + vx * s, p.y)) p.x += vx * s;
+    if (fits(wd, p.x, p.y + vy * s)) p.y += vy * s;
+    if (vx !== 0) p.face = vx > 0 ? 1 : -1;
+    addWalk(p, Math.hypot(p.x - ox, p.y - oy));
+  }
+
+  function addWalk(p, dist) {
+    const c = G.config;
+    p.walked += dist;
+    while (p.walked >= c.tilesPerHunger) {
+      p.walked -= c.tilesPerHunger;
+      p.hunger = Math.max(0, p.hunger - 1);
+    }
+  }
+
+  function eat(p) { p.hunger = Math.min(G.config.hungerMax, p.hunger + G.config.burgerHeal); }
+
+  G.player = { create, tile, speed, move, addWalk, eat, fits };
+})(window.Game = window.Game || {});
+</script>
+<script>
+// ハンバーガー屋: カウンター1つがお店1軒。店員・行列・売り買い・アルバイト
+(function (G) {
+  const W = () => G.world;
+
+  // カウンターの数とお店の記録をそろえる
+  function reconcile(s) {
+    const keys = new Set(W().findAll(s.world, 'counter').map(p => W().key(p.x, p.y)));
+    for (const k of keys) if (!s.shops[k]) s.shops[k] = { serveTimer: 0 };
+    for (const k of Object.keys(s.shops)) if (!keys.has(k)) delete s.shops[k];
+    if (s.job.active && !keys.has(s.job.counter)) endJob(s);
+  }
+
+  // お客さんが立てるマス（アルバイト中は自分が立っているマスを除く）
+  function spotsFor(s, k) {
+    const { x, y } = W().parseKey(k);
+    let spots = W().passableNeighbors(s.world, x, y);
+    if (s.job.active && s.job.counter === k) {
+      const pt = G.player.tile(s.player);
+      spots = spots.filter(p => p.x !== pt.x || p.y !== pt.y);
+    }
+    return spots.slice(0, G.config.queueMax);
+  }
+
+  function front(s, k) {
+    let best = null;
+    for (const r of s.residents)
+      if (r.state === 'queued' && r.shopKey === k && (!best || r.queuedAt < best.queuedAt)) best = r;
+    return best;
+  }
+
+  function update(s, dt) {
+    for (const k of Object.keys(s.shops)) {
+      const shop = s.shops[k], f = front(s, k);
+      if (!f) { shop.serveTimer = 0; continue; }
+      if (s.job.active && s.job.counter === k) {
+        if (s.job.customerId !== f.id) {
+          s.job.customerId = f.id;
+          s.job.order = G.burgerJob.makeOrder(G.burgerJob.layersFor(s.job.deliveries), G.rng);
+          s.job.stack = [];
+        }
+        continue;
+      }
+      shop.serveTimer += dt;
+      if (shop.serveTimer >= G.config.clerkServeTime) {
+        shop.serveTimer = 0;
+        G.residents.served(s, f);
+      }
+    }
+  }
+
+  // 自分のまわり（となり・ななめ）にあるカウンター
+  function nearCounter(s) {
+    const pt = G.player.tile(s.player);
+    for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+      const o = W().objAt(s.world, pt.x + dx, pt.y + dy);
+      if (o && o.type === 'counter') return W().key(pt.x + dx, pt.y + dy);
+    }
+    return null;
+  }
+
+  function buy(s) {
+    const c = G.config;
+    if (s.player.money < c.burgerPrice) return { ok: false, why: 'money' };
+    s.player.money -= c.burgerPrice;
+    G.player.eat(s.player);
+    return { ok: true };
+  }
+
+  function startJob(s, k) {
+    Object.assign(s.job, { active: true, counter: k, customerId: null, order: null, stack: [] });
+  }
+  function endJob(s) {
+    Object.assign(s.job, { active: false, counter: null, customerId: null, order: null, stack: [] });
+  }
+
+  function deliver(s) {
+    const j = s.job;
+    if (!G.burgerJob.canDeliver(j.stack, j.order)) return { ok: false };
+    const reward = G.burgerJob.reward(j.order);
+    s.player.money += reward;
+    j.deliveries++;
+    const r = s.residents.find(r => r.id === j.customerId);
+    if (r) G.residents.served(s, r);
+    Object.assign(j, { customerId: null, order: null, stack: [] });
+    return { ok: true, reward };
+  }
+
+  G.shop = { reconcile, spotsFor, front, update, nearCounter, buy, startJob, endJob, deliver };
+})(window.Game = window.Game || {});
+</script>
+<script>
+// 住人: ベッドを置くと引っ越してくる。家とハンバーガー屋を行き来する
+// 状態: arriving → home → toShop → queued → returning → home … / ベッドが消えたら leaving
+(function (G) {
+  const W = () => G.world, P = () => G.pathfind;
+  const NAMES = ['たろう', 'はなこ', 'けんた', 'さくら', 'ゆうと', 'みさき', 'そうた', 'あおい',
+    'りく', 'ひなた', 'こうき', 'ゆい', 'はると', 'めい', 'だいち', 'のぞみ'];
+
+  const LINES = {
+    normal: ['いいまちだね', 'きょうも いいてんき！', 'このまち すきだよ'],
+    hungry: ['おなかすいた〜', 'ハンバーガー たべたいな'],
+    ate: ['ハンバーガー おいしかった！', 'おなか いっぱい！'],
+    noShop: ['ハンバーガーやさんが あればなあ'],
+    cantReach: ['おみせに いけないよ〜'],
+    full: ['おみせ こんでるね。あとで いこう'],
+  };
+
+  const bedKey = (r) => W().key(r.bed.x, r.bed.y);
+  const tileOf = (r) => ({ x: Math.round(r.x), y: Math.round(r.y) });
+
+  // 家の前のマス（ベッドのとなりで通れるところ）。なければベッドの上
+  function homeSpot(s, r) {
+    return W().passableNeighbors(s.world, r.bed.x, r.bed.y)[0] || { x: r.bed.x, y: r.bed.y };
+  }
+
+  function create(s, bed) {
+    const id = s.nextId++;
+    const looks = G.sprites.residentLooks;
+    const r = {
+      id, name: NAMES[(id - 1) % NAMES.length], look: looks[Math.floor(G.rng() * looks.length)],
+      bed: { x: bed.x, y: bed.y }, x: 0, y: 0, path: [], goal: null, state: 'arriving',
+      mood: 'normal', shopKey: null, spot: null, queuedAt: 0, lastServed: -1e9,
+      hungerTimer: G.config.residentHungerInterval * (0.3 + 0.4 * G.rng()), pullBlockedUntil: 0,
+    };
+    const home = homeSpot(s, r);
+    const out = P().find(s.world, home, P().edgeKeys(s.world));
+    const start = out && out.length ? out[out.length - 1] : home;
+    r.x = start.x; r.y = start.y;
+    setGoal(s, r, home);
+    s.residents.push(r);
+    return r;
+  }
+
+  // 目的地を決めて道を引く。行けなければ false
+  function setGoal(s, r, goal) {
+    const path = P().find(s.world, tileOf(r), new Set([W().key(goal.x, goal.y)]));
+    if (!path) return false;
+    r.goal = { x: goal.x, y: goal.y };
+    r.path = path;
+    return true;
+  }
+
+  // 道にそって歩く。'moving' | 'arrived' | 'blocked'
+  function walk(s, r, dt) {
+    let left = G.config.residentSpeed * dt;
+    while (left > 0 && r.path.length) {
+      const t = r.path[0];
+      if (!W().isPassable(s.world, t.x, t.y)) {
+        if (!r.goal || !setGoal(s, r, r.goal)) return 'blocked';
+        continue;
+      }
+      const dx = t.x - r.x, dy = t.y - r.y, d = Math.hypot(dx, dy);
+      if (d <= left) { r.x = t.x; r.y = t.y; r.path.shift(); left -= d; }
+      else { r.x += dx / d * left; r.y += dy / d * left; left = 0; }
+    }
+    return r.path.length ? 'moving' : 'arrived';
+  }
+
+  function warpHome(s, r) {
+    const h = homeSpot(s, r);
+    Object.assign(r, { x: h.x, y: h.y, path: [], goal: null, state: 'home', shopKey: null, spot: null });
+  }
+
+  function goHome(s, r) {
+    r.shopKey = null; r.spot = null;
+    r.state = 'returning';
+    if (!setGoal(s, r, homeSpot(s, r))) warpHome(s, r);
+  }
+
+  function startLeaving(s, r) {
+    r.state = 'leaving'; r.shopKey = null; r.spot = null;
+    const path = P().find(s.world, tileOf(r), P().edgeKeys(s.world));
+    if (!path) { r.gone = true; return; }
+    r.path = path;
+    r.goal = path.length ? path[path.length - 1] : null;
+  }
+
+  // お店へ向かう。onlyKey があればそのお店だけ。行けなければ mood を変えて false
+  function goShop(s, r, onlyKey) {
+    const keys = onlyKey ? [onlyKey] : Object.keys(s.shops);
+    if (!Object.keys(s.shops).length) { r.mood = 'noShop'; return false; }
+    const reserved = new Set(s.residents.filter(o => o !== r && o.spot).map(o => o.spot));
+    const spotShop = new Map();
+    let anySpot = false;
+    for (const k of keys) for (const p of G.shop.spotsFor(s, k)) {
+      anySpot = true;
+      const pk = W().key(p.x, p.y);
+      if (!reserved.has(pk)) spotShop.set(pk, k);
+    }
+    if (!spotShop.size) { r.mood = anySpot ? 'full' : 'cantReach'; return false; }
+    const path = P().find(s.world, tileOf(r), new Set(spotShop.keys()));
+    if (!path) { r.mood = 'cantReach'; return false; }
+    const end = path.length ? path[path.length - 1] : tileOf(r);
+    r.spot = W().key(end.x, end.y);
+    r.shopKey = spotShop.get(r.spot);
+    r.goal = end; r.path = path;
+    r.state = 'toShop'; r.mood = 'hungry';
+    return true;
+  }
+
+  // 買えた（店員から、またはアルバイトの自分から）
+  function served(s, r) {
+    r.mood = 'ate';
+    r.lastServed = s.time;
+    r.hungerTimer = G.config.residentHungerInterval * (0.8 + 0.4 * G.rng());
+    goHome(s, r);
+  }
+
+  // アルバイト中は、おなかに関係なく1人ずつ順番に来る
+  function pullForJob(s) {
+    const k = s.job.counter;
+    if (s.residents.some(r => r.shopKey === k && (r.state === 'toShop' || r.state === 'queued'))) return;
+    const cands = s.residents.filter(r => r.state === 'home' && r.pullBlockedUntil <= s.time)
+      .sort((a, b) => a.lastServed - b.lastServed);
+    for (const r of cands) {
+      if (goShop(s, r, k)) return;
+      r.pullBlockedUntil = s.time + 5;
+    }
+  }
+
+  function update(s, dt) {
+    // ベッドと住人をそろえる
+    const have = new Set(s.residents.map(bedKey));
+    for (const b of W().findAll(s.world, 'bed')) if (!b.own && !have.has(W().key(b.x, b.y))) create(s, b);
+    for (const r of s.residents) {
+      const o = W().objAt(s.world, r.bed.x, r.bed.y);
+      if (r.state !== 'leaving' && (!o || o.type !== 'bed')) startLeaving(s, r);
+      if (r.shopKey && !s.shops[r.shopKey]) goHome(s, r);
+    }
+
+    for (const r of s.residents) {
+      if (r.gone) continue;
+      if (r.mood === 'ate' && s.time - r.lastServed > 30) r.mood = 'normal';
+      switch (r.state) {
+        case 'arriving':
+        case 'returning': {
+          const st = walk(s, r, dt);
+          if (st === 'arrived') r.state = 'home';
+          else if (st === 'blocked') warpHome(s, r);
+          break;
+        }
+        case 'home':
+          r.hungerTimer -= dt;
+          if (r.hungerTimer <= 0 && !goShop(s, r)) r.hungerTimer = G.config.retryInterval;
+          break;
+        case 'toShop': {
+          const st = walk(s, r, dt);
+          if (st === 'arrived') { r.state = 'queued'; r.queuedAt = s.time; }
+          else if (st === 'blocked') goHome(s, r);
+          break;
+        }
+        case 'queued':
+          break;
+        case 'leaving':
+          if (walk(s, r, dt) !== 'moving') r.gone = true;
+          break;
+      }
+    }
+    s.residents = s.residents.filter(r => !r.gone);
+    if (s.job.active) pullForJob(s);
+  }
+
+  function talk(s, r) {
+    let mood = r.mood;
+    if (r.state === 'toShop' || r.state === 'queued') mood = 'hungry';
+    const lines = LINES[mood] || LINES.normal;
+    return lines[Math.floor(G.rng() * lines.length)];
+  }
+
+  // 自分のまわり1.5マス以内でいちばん近い住人
+  function near(s) {
+    let best = null, bd = 1.5;
+    for (const r of s.residents) {
+      const d = Math.hypot(r.x - s.player.x, r.y - s.player.y);
+      if (d <= bd) { best = r; bd = d; }
+    }
+    return best;
+  }
+
+  G.residents = { NAMES, LINES, create, update, served, talk, near, homeSpot, goShop };
+})(window.Game = window.Game || {});
+</script>
+<script>
+// ゲーム全体の状態（セーブするのはこれ全部）と、1コマ進める処理
+(function (G) {
+  G.rng = G.rng || Math.random;
+  const VERSION = 1;
+
+  function create() {
+    const c = G.config;
+    const world = G.world.create(c.mapW, c.mapH);
+    world.obj[c.ownBed.y * c.mapW + c.ownBed.x] = { type: 'bed', own: true };
+    return {
+      version: VERSION, time: 0, nextId: 1,
+      world,
+      player: G.player.create(),
+      residents: [],
+      shops: {},
+      job: { active: false, counter: null, deliveries: 0, customerId: null, order: null, stack: [] },
+    };
+  }
+
+  // 人が立っている（これから入る）マス。ここには壁などを置けない
+  function occupied(s) {
+    const set = new Set();
+    const add = (x, y) => set.add(G.world.key(Math.round(x), Math.round(y)));
+    const p = s.player;
+    for (const dx of [-0.3, 0.3]) for (const dy of [-0.3, 0.3]) add(p.x + dx, p.y + dy);
+    for (const r of s.residents) {
+      add(r.x, r.y);
+      if (r.path.length) add(r.path[0].x, r.path[0].y);
+    }
+    return set;
+  }
+
+  function tick(s, dt) {
+    s.time += dt;
+    G.shop.reconcile(s);
+    G.residents.update(s, dt);
+    G.shop.update(s, dt);
+  }
+
+  G.state = { VERSION, create, occupied, tick };
+})(window.Game = window.Game || {});
+</script>
+<script>
+// セーブ: ブラウザの中（localStorage）と、ファイルへの書き出し・読み込み
+(function (G) {
+  function serialize(s) { return JSON.stringify(s); }
+
+  // 形がおかしければ例外
+  function deserialize(text) {
+    const s = JSON.parse(text);
+    const c = G.config;
+    const ok = s && s.version === G.state.VERSION && s.world && s.world.w === c.mapW && s.world.h === c.mapH
+      && Array.isArray(s.world.floor) && s.world.floor.length === c.mapW * c.mapH
+      && Array.isArray(s.world.obj) && s.world.obj.length === c.mapW * c.mapH
+      && s.player && typeof s.player.money === 'number' && Array.isArray(s.residents)
+      && s.shops && typeof s.shops === 'object' && s.job && typeof s.time === 'number';
+    if (!ok) throw new Error('bad save');
+    s.job.active = false; // 開き直したらアルバイトは終わっている
+    s.job.customerId = null; s.job.order = null; s.job.stack = [];
+    return s;
+  }
+
+  // 戻り値 { state, status: 'new' | 'loaded' | 'recovered' }
+  // recovered: 壊れていたので新しく始めた（壊れたデータは別のキーに残す）
+  function load(storage) {
+    const key = G.config.saveKey;
+    let text = null;
+    try { text = storage.getItem(key); } catch (e) { /* 保存が使えない */ }
+    if (!text) return { state: G.state.create(), status: 'new' };
+    try { return { state: deserialize(text), status: 'loaded' }; }
+    catch (e) {
+      try { storage.setItem(key + '-broken-' + Date.now(), text); } catch (e2) { /* 残せなくても続ける */ }
+      return { state: G.state.create(), status: 'recovered' };
+    }
+  }
+
+  function save(storage, s) {
+    try { storage.setItem(G.config.saveKey, serialize(s)); return true; }
+    catch (e) { return false; }
+  }
+
+  G.save = { serialize, deserialize, load, save };
+})(window.Game = window.Game || {});
+</script>
+<script>
+// 操作: ぷにコン（触ったところにスティック）・マウスのドラッグ・矢印キー。つくるモードはタップで置く・なぞって動かす
+(function (G) {
+  const RADIUS = 50, DEAD = 0.15;
+  const keys = new Set();
+  const input = {
+    joy: null,   // { ox, oy, cx, cy, id }
+    drag: null,  // つくるモードのなぞり
+  };
+
+  function init(app) {
+    const cv = app.canvas;
+    cv.addEventListener('pointerdown', (e) => {
+      cv.setPointerCapture(e.pointerId);
+      if (app.mode === 'walk') input.joy = { ox: e.clientX, oy: e.clientY, cx: e.clientX, cy: e.clientY, id: e.pointerId };
+      else if (app.mode === 'build')
+        input.drag = { x: e.clientX, y: e.clientY, cam: { ...app.cam }, moved: false, id: e.pointerId };
+    });
+    cv.addEventListener('pointermove', (e) => {
+      if (input.joy && e.pointerId === input.joy.id) { input.joy.cx = e.clientX; input.joy.cy = e.clientY; }
+      const d = input.drag;
+      if (d && e.pointerId === d.id) {
+        const dx = e.clientX - d.x, dy = e.clientY - d.y;
+        if (Math.hypot(dx, dy) > 10) d.moved = true;
+        if (d.moved) { app.cam.x = d.cam.x - dx / app.T; app.cam.y = d.cam.y - dy / app.T; }
+      }
+    });
+    const up = (e) => {
+      if (input.joy && e.pointerId === input.joy.id) input.joy = null;
+      const d = input.drag;
+      if (d && e.pointerId === d.id) {
+        if (!d.moved && e.type === 'pointerup') app.onTap(G.render.screenToTile(app, e.clientX, e.clientY));
+        input.drag = null;
+      }
+    };
+    cv.addEventListener('pointerup', up);
+    cv.addEventListener('pointercancel', up);
+    addEventListener('keydown', (e) => { keys.add(e.key); });
+    addEventListener('keyup', (e) => { keys.delete(e.key); });
+    addEventListener('blur', () => keys.clear());
+  }
+
+  // 歩く向き（長さ1まで）
+  function dir() {
+    let vx = 0, vy = 0;
+    if (keys.has('ArrowLeft') || keys.has('a')) vx -= 1;
+    if (keys.has('ArrowRight') || keys.has('d')) vx += 1;
+    if (keys.has('ArrowUp') || keys.has('w')) vy -= 1;
+    if (keys.has('ArrowDown') || keys.has('s')) vy += 1;
+    if (vx || vy) { const l = Math.hypot(vx, vy); return { vx: vx / l, vy: vy / l }; }
+    const j = input.joy;
+    if (!j) return { vx: 0, vy: 0 };
+    let dx = (j.cx - j.ox) / RADIUS, dy = (j.cy - j.oy) / RADIUS;
+    const l = Math.hypot(dx, dy);
+    if (l < DEAD) return { vx: 0, vy: 0 };
+    if (l > 1) { dx /= l; dy /= l; }
+    return { vx: dx, vy: dy };
+  }
+
+  function reset() { input.joy = null; input.drag = null; }
+
+  Object.assign(input, { init, dir, reset, RADIUS });
+  G.input = input;
+})(window.Game = window.Game || {});
+</script>
+<script>
+// Canvas への描画。マス (x, y) の中心は整数の座標
+(function (G) {
+  function resize(app) {
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    app.W = innerWidth; app.H = innerHeight; app.dpr = dpr;
+    app.canvas.width = app.W * dpr; app.canvas.height = app.H * dpr;
+    app.canvas.style.width = app.W + 'px'; app.canvas.style.height = app.H + 'px';
+    app.T = Math.max(36, Math.min(72, Math.round(Math.min(app.W, app.H) / 8)));
+  }
+
+  const toScreen = (app, x, y) => ({ x: (x - app.cam.x) * app.T + app.W / 2, y: (y - app.cam.y) * app.T + app.H / 2 });
+  const screenToTile = (app, sx, sy) => ({
+    x: Math.round((sx - app.W / 2) / app.T + app.cam.x), y: Math.round((sy - app.H / 2) / app.T + app.cam.y) });
+
+  function emoji(ctx, ch, x, y, size) {
+    ctx.fillStyle = "#000";
+    ctx.font = `${size}px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif`;
+    ctx.fillText(ch, x, y);
+  }
+
+  function tileRect(ctx, sx, sy, T, sp) {
+    ctx.fillStyle = sp.color;
+    ctx.fillRect(Math.floor(sx - T / 2), Math.floor(sy - T / 2), T + 1, T + 1); // +1 はすき間の線を消すため
+    if (sp.line) { ctx.strokeStyle = sp.line; ctx.lineWidth = 2; ctx.strokeRect(sx - T / 2 + 1, sy - T / 2 + 1, T - 2, T - 2); }
+  }
+
+  function drawWall(ctx, sx, sy, T, sp) {
+    tileRect(ctx, sx, sy, T, sp);
+    ctx.strokeStyle = sp.line; ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(sx - T / 2, sy); ctx.lineTo(sx + T / 2, sy);
+    ctx.moveTo(sx, sy - T / 2); ctx.lineTo(sx, sy);
+    ctx.moveTo(sx - T / 4, sy); ctx.lineTo(sx - T / 4, sy + T / 2);
+    ctx.moveTo(sx + T / 4, sy); ctx.lineTo(sx + T / 4, sy + T / 2);
+    ctx.stroke();
+  }
+
+  function draw(app) {
+    const { ctx, T, W, H } = app, s = app.s, S = G.sprites, wd = s.world;
+    ctx.setTransform(app.dpr, 0, 0, app.dpr, 0, 0);
+    ctx.fillStyle = '#5d8a2f'; ctx.fillRect(0, 0, W, H);
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+
+    const x0 = Math.max(0, Math.floor(app.cam.x - W / 2 / T) - 1), x1 = Math.min(wd.w - 1, Math.ceil(app.cam.x + W / 2 / T) + 1);
+    const y0 = Math.max(0, Math.floor(app.cam.y - H / 2 / T) - 1), y1 = Math.min(wd.h - 1, Math.ceil(app.cam.y + H / 2 / T) + 1);
+
+    for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
+      const { x: sx, y: sy } = toScreen(app, x, y);
+      tileRect(ctx, sx, sy, T, G.world.hasFloor(wd, x, y) ? S.floor : S.grass);
+      const o = G.world.objAt(wd, x, y);
+      if (!o) continue;
+      if (o.type === 'wall') drawWall(ctx, sx, sy, T, S.wall);
+      else if (o.type === 'counter') {
+        tileRect(ctx, sx, sy, T, S.counter);
+        emoji(ctx, S.burger.emoji, sx, sy + T * 0.1, T * 0.45);
+        const working = s.job.active && s.job.counter === G.world.key(x, y);
+        if (!working) emoji(ctx, S.clerk.emoji, sx, sy - T * 0.35, T * 0.6);
+      } else emoji(ctx, S[o.type].emoji, sx, sy, T * 0.8);
+      if (o.own) emoji(ctx, '⭐', sx + T * 0.3, sy - T * 0.3, T * 0.3);
+    }
+
+    if (app.mode === 'build') {
+      ctx.strokeStyle = '#0002'; ctx.lineWidth = 1;
+      for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
+        const { x: sx, y: sy } = toScreen(app, x, y);
+        ctx.strokeRect(sx - T / 2, sy - T / 2, T, T);
+      }
+    }
+
+    // 人（奥から順に）
+    const people = s.residents.map(r => ({ x: r.x, y: r.y, ch: r.look, r }));
+    people.push({ x: s.player.x, y: s.player.y, ch: S.player.emoji, me: true });
+    people.sort((a, b) => a.y - b.y);
+    for (const p of people) {
+      const { x: sx, y: sy } = toScreen(app, p.x, p.y);
+      if (sx < -T || sy < -T || sx > W + T || sy > H + T) continue;
+      ctx.fillStyle = '#0003';
+      ctx.beginPath(); ctx.ellipse(sx, sy + T * 0.32, T * 0.28, T * 0.1, 0, 0, Math.PI * 2); ctx.fill();
+      emoji(ctx, p.ch, sx, sy - T * 0.05, T * 0.8);
+      if (p.me) {
+        ctx.fillStyle = '#ff5722';
+        ctx.beginPath(); ctx.moveTo(sx, sy - T * 0.5); ctx.lineTo(sx - 7, sy - T * 0.62); ctx.lineTo(sx + 7, sy - T * 0.62); ctx.fill();
+      } else if (p.r.state === 'toShop' || p.r.state === 'queued') {
+        emoji(ctx, '💭', sx + T * 0.35, sy - T * 0.5, T * 0.45);
+        emoji(ctx, S.burger.emoji, sx + T * 0.35, sy - T * 0.52, T * 0.22);
+      }
+    }
+
+    // ぷにコン
+    const j = G.input.joy;
+    if (j && app.mode === 'walk') {
+      const R = G.input.RADIUS;
+      let dx = j.cx - j.ox, dy = j.cy - j.oy; const l = Math.hypot(dx, dy);
+      if (l > R) { dx = dx / l * R; dy = dy / l * R; }
+      ctx.fillStyle = '#fff5'; ctx.beginPath(); ctx.arc(j.ox, j.oy, R, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#fffc'; ctx.beginPath(); ctx.arc(j.ox + dx, j.oy + dy, R * 0.45, 0, Math.PI * 2); ctx.fill();
+    }
+  }
+
+  G.render = { resize, draw, toScreen, screenToTile };
+})(window.Game = window.Game || {});
+</script>
+<script>
+// 画面の上に重ねる表示（DOM）: 上の表示・ボタン・つくるパレット・アルバイト画面・メニュー
+(function (G) {
+  const S = () => G.sprites;
+  let root, els = {}, last = {}, app;
+
+  function h(tag, attrs, ...kids) {
+    const e = document.createElement(tag);
+    for (const [k, v] of Object.entries(attrs || {})) {
+      if (k.startsWith('on')) e.addEventListener(k.slice(2), v);
+      else if (k === 'class') e.className = v;
+      else e.setAttribute(k, v);
+    }
+    for (const c of kids) e.append(c);
+    return e;
+  }
+  // pointerdown で押す（タッチで反応を速く・ぷにコンと取り合わない）
+  function btn(label, fn, attrs = {}) {
+    const b = h('button', attrs);
+    b.innerHTML = label;
+    b.addEventListener('pointerdown', (e) => { e.preventDefault(); e.stopPropagation(); if (!b.disabled) fn(); });
+    return b;
+  }
+
+  const TOOLS = [
+    { id: 'floor', icon: () => `<span class="swatch" style="background:${S().floor.color}"></span>`, label: 'ゆか' },
+    { id: 'wall', icon: () => `<span class="swatch" style="background:${S().wall.color}"></span>`, label: 'かべ' },
+    { id: 'door', icon: () => S().door.emoji, label: 'ドア' },
+    { id: 'bed', icon: () => S().bed.emoji, label: 'ベッド' },
+    { id: 'counter', icon: () => S().burger.emoji, label: 'カウンター' },
+    { id: 'erase', icon: () => '🧽', label: 'けす' },
+  ];
+
+  function init(a) {
+    app = a;
+    root = document.getElementById('ui');
+    els.money = h('span', { class: 'pill', 'data-t': 'money' });
+    els.bar = h('div', { class: 'bar' }, h('i'));
+    els.hunger = h('span', { class: 'pill hunger' }, 'おなか', els.bar);
+    els.build = btn('', () => app.toggleBuild(), { 'data-t': 'build' });
+    els.menu = btn('≡', () => openMenu());
+    root.append(h('div', { class: 'hud' }, els.money, els.hunger, h('span', { class: 'spacer' }), els.build, els.menu));
+
+    els.actions = h('div', { class: 'actions' });
+    els.talk = btn('💬 はなす', () => app.talk(), { 'data-t': 'talk' });
+    els.buy = btn('', () => app.buy(), { 'data-t': 'buy' });
+    els.work = btn('🧑‍🍳 アルバイト', () => app.startJob(), { 'data-t': 'work' });
+    els.actions.append(els.talk, els.buy, els.work);
+    root.append(els.actions);
+
+    els.palette = h('div', { class: 'palette' });
+    for (const t of TOOLS) {
+      const b = btn(`${t.icon()}<small>${t.label}</small>`, () => { app.tool = t.id; }, { 'data-tool': t.id });
+      els.palette.append(b);
+    }
+    root.append(els.palette);
+
+    buildJob();
+    els.toast = h('div', { class: 'toast', style: 'display:none' });
+    root.append(els.toast);
+    root.append(h('div', { class: 'rotate' }, 'スマホを よこに してね 📱↻'));
+  }
+
+  function buildJob() {
+    const J = S().ingredients;
+    els.order = h('div', { class: 'stack', 'data-t': 'order' });
+    els.customer = h('div', { class: 'customer' });
+    els.mine = h('div', { class: 'stack', 'data-t': 'mine' });
+    els.wait = h('div', { class: 'wait' });
+    els.give = btn('✋ わたす', () => app.deliver(), { class: 'give', 'data-t': 'give' });
+    const controls = h('div', { class: 'controls' });
+    for (const id of G.burgerJob.FILLINGS.concat(['bun']).reverse())
+      controls.append(btn(`${J[id].emoji}`, () => app.addLayer(id), { 'data-ing': id, title: J[id].label }));
+    controls.append(btn('↩️ 1つとる', () => app.removeLayer(), { 'data-t': 'undo' }), els.give,
+      btn('おわる', () => app.endJob(), { class: 'end', 'data-t': 'endjob' }));
+    els.job = h('div', { class: 'job' },
+      h('div', { class: 'col' }, h('div', { class: 'title' }, 'ちゅうもん'), els.wait, els.order, els.customer),
+      h('div', { class: 'col' }, h('div', { class: 'title' }, 'つくってる ハンバーガー'), els.mine),
+      controls);
+    root.append(els.job);
+  }
+
+  function stackHTML(list) {
+    const J = S().ingredients;
+    return list.map(id => `<span style="background:${J[id].color}">${J[id].emoji}</span>`).join('');
+  }
+
+  // 変わったときだけ DOM を書き換える
+  function set(name, value, fn) { if (last[name] !== value) { last[name] = value; fn(value); } }
+  const show = (el, on) => { el.style.display = on ? '' : 'none'; };
+
+  function update() {
+    const s = app.s, p = s.player, mode = app.mode;
+    set('money', p.money, v => { els.money.textContent = `${S().coin.emoji} ${v}`; });
+    set('hunger', Math.ceil(p.hunger), v => {
+      els.bar.firstChild.style.width = (v / G.config.hungerMax * 100) + '%';
+      els.bar.classList.toggle('empty', v <= 0);
+    });
+    set('mode', mode, m => {
+      els.build.innerHTML = m === 'build' ? '✅ もどる' : '🔨 つくる';
+      show(els.build, m !== 'job');
+      show(els.palette, m === 'build');
+      show(els.job, m === 'job');
+      show(els.actions, m === 'walk');
+    });
+    set('tool', app.tool, t => {
+      for (const b of els.palette.children) b.classList.toggle('on', b.dataset.tool === t);
+    });
+
+    if (mode === 'walk') {
+      const near = G.residents.near(s), counter = G.shop.nearCounter(s);
+      set('near', !!near, v => show(els.talk, v));
+      set('counter', !!counter, v => { show(els.buy, v); show(els.work, v); });
+      set('price', G.config.burgerPrice, v => { els.buy.innerHTML = `🍔 かう（${v}）`; });
+    }
+
+    if (mode === 'job') {
+      const j = s.job, cust = s.residents.find(r => r.id === j.customerId);
+      const waitMsg = j.order ? '' : (s.residents.length ? 'おきゃくさんを まってるよ…' : 'ベッドを おくと<br>おきゃくさんが くるよ');
+      set('wait', waitMsg, v => { els.wait.innerHTML = v; show(els.wait, !!v); });
+      set('order', j.order ? j.order.join() : '', () => { els.order.innerHTML = j.order ? stackHTML(j.order) : ''; });
+      set('cust', cust ? cust.look + cust.name : '', () => { els.customer.innerHTML = cust ? `${cust.look}<div style="font-size:16px">${cust.name}</div>` : ''; });
+      set('mine', j.stack.join(), () => { els.mine.innerHTML = stackHTML(j.stack); });
+      set('give', G.burgerJob.canDeliver(j.stack, j.order), v => { els.give.disabled = !v; });
+    }
+
+    if (app.toastUntil && performance.now() > app.toastUntil) { app.toastUntil = 0; show(els.toast, false); }
+  }
+
+  function toast(text, ms = 2500) {
+    els.toast.textContent = text;
+    show(els.toast, true);
+    app.toastUntil = performance.now() + ms;
+  }
+
+  function pop(text) {
+    const e = h('div', { class: 'pop' }, text);
+    root.append(e);
+    setTimeout(() => e.remove(), 1000);
+  }
+
+  function openMenu() {
+    const close = () => m.remove();
+    const file = h('input', { type: 'file', accept: '.json,application/json', style: 'display:none' });
+    file.addEventListener('change', async () => {
+      const f = file.files[0]; if (!f) return;
+      close();
+      app.importSave(await f.text());
+    });
+    const m = h('div', { class: 'modal' }, h('div', { class: 'box' },
+      btn('💾 セーブを ファイルに かきだす', () => { close(); app.exportSave(); }),
+      btn('📂 ファイルから よみこむ', () => file.click()),
+      btn('とじる', close), file));
+    root.append(m);
+  }
+
+  G.ui = { init, update, toast, pop };
+})(window.Game = window.Game || {});
+</script>
+<script>
+// 全体の流れ: 読み込み → ループ（動かす・描く・自動セーブ）、モード切り替え
+(function (G) {
+  const MSG = {
+    occupied: 'ひとが いるところには おけないよ',
+    ownBed: 'じぶんの ベッドは けせないよ',
+    money: 'おかねが たりないよ。アルバイトしよう！',
+  };
+
+  const loaded = G.save.load(localStorage);
+  const app = {
+    s: loaded.state, mode: 'walk', tool: 'floor', cam: { x: 0, y: 0 },
+    canvas: document.getElementById('screen'), toastUntil: 0, saveTimer: 0, wasHungry: false,
+  };
+  app.ctx = app.canvas.getContext('2d');
+  app.cam = { x: app.s.player.x, y: app.s.player.y };
+
+  const persist = () => G.save.save(localStorage, app.s);
+
+  function setMode(m) {
+    app.mode = m;
+    G.input.reset();
+    persist();
+  }
+
+  app.toggleBuild = () => {
+    if (app.mode === 'build') { setMode('walk'); return; }
+    setMode('build');
+  };
+
+  app.onTap = (t) => {
+    if (app.mode !== 'build') return;
+    const s = app.s;
+    const res = app.tool === 'erase' ? G.world.erase(s.world, t.x, t.y)
+      : G.world.place(s.world, t.x, t.y, app.tool, G.state.occupied(s));
+    if (!res.ok && MSG[res.why]) G.ui.toast(MSG[res.why]);
+  };
+
+  app.talk = () => {
+    const r = G.residents.near(app.s);
+    if (r) G.ui.toast(`${r.look} ${r.name}「${G.residents.talk(app.s, r)}」`, 3000);
+  };
+
+  app.buy = () => {
+    const res = G.shop.buy(app.s);
+    if (res.ok) { G.ui.pop('😋 もぐもぐ'); app.wasHungry = false; }
+    else G.ui.toast(MSG[res.why]);
+  };
+
+  app.startJob = () => {
+    const k = G.shop.nearCounter(app.s);
+    if (!k) return;
+    G.shop.startJob(app.s, k);
+    setMode('job');
+  };
+  app.endJob = () => { G.shop.endJob(app.s); setMode('walk'); };
+  app.addLayer = (id) => { if (app.s.job.order) G.burgerJob.addLayer(app.s.job.stack, id); };
+  app.removeLayer = () => { G.burgerJob.removeLayer(app.s.job.stack); };
+  app.deliver = () => {
+    const res = G.shop.deliver(app.s);
+    if (res.ok) G.ui.pop(`+${res.reward} ${G.sprites.coin.emoji}`);
+  };
+
+  app.exportSave = () => {
+    const blob = new Blob([G.save.serialize(app.s)], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `kids-game-save-${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  };
+  app.importSave = (text) => {
+    try {
+      app.s = G.save.deserialize(text);
+      app.cam = { x: app.s.player.x, y: app.s.player.y };
+      setMode('walk');
+      G.ui.toast('よみこんだよ');
+    } catch (e) { G.ui.toast('この ファイルは よめないよ'); }
+  };
+
+  function update(dt) {
+    const s = app.s;
+    if (app.mode === 'walk') {
+      const d = G.input.dir();
+      G.player.move(s.player, s.world, d.vx, d.vy, dt);
+      if (s.player.hunger <= 0 && !app.wasHungry) { app.wasHungry = true; G.ui.toast('おなかが ぺこぺこ… ハンバーガーを たべよう'); }
+    }
+    G.state.tick(s, dt);
+    if (app.mode === 'job' && !s.job.active) setMode('walk'); // カウンターが消えたなど
+    if (app.mode !== 'build') {
+      app.cam.x += (s.player.x - app.cam.x) * Math.min(1, dt * 8);
+      app.cam.y += (s.player.y - app.cam.y) * Math.min(1, dt * 8);
+    }
+    app.saveTimer += dt;
+    if (app.saveTimer >= G.config.autosaveInterval) { app.saveTimer = 0; persist(); }
+  }
+
+  let prev = performance.now();
+  function frame(now) {
+    const dt = Math.min(0.1, (now - prev) / 1000);
+    prev = now;
+    update(dt);
+    G.render.draw(app);
+    G.ui.update();
+    requestAnimationFrame(frame);
+  }
+
+  G.render.resize(app);
+  addEventListener('resize', () => G.render.resize(app));
+  document.addEventListener('visibilitychange', () => { if (document.hidden) persist(); });
+  addEventListener('pagehide', persist);
+  G.input.init(app);
+  G.ui.init(app);
+  if (loaded.status === 'recovered') G.ui.toast('セーブが よめなかったので、あたらしく はじめたよ', 4000);
+  requestAnimationFrame(frame);
+
+  // 通しテスト用
+  G.debug = {
+    app,
+    step(sec) { for (let t = 0; t < sec; t += 0.05) update(0.05); G.render.draw(app); G.ui.update(); },
+    tileToScreen: (x, y) => G.render.toScreen(app, x, y),
+  };
+})(window.Game = window.Game || {});
+</script>
+</body>
+</html>
