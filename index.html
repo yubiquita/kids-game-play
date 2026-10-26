@@ -28,7 +28,8 @@ button:disabled { opacity: .45; }
 .spacer { flex: 1; }
 
 .actions { position: absolute; right: max(12px, env(safe-area-inset-right)); bottom: 16px;
-  display: flex; flex-direction: column; gap: 10px; align-items: flex-end; }
+  display: flex; flex-direction: column; flex-wrap: wrap-reverse; gap: 10px; align-items: flex-end;
+  align-content: flex-start; max-height: calc(100% - 90px); }
 .actions button { font-size: 22px; padding: 12px 18px; }
 
 .toast { position: absolute; top: 64px; left: 50%; transform: translateX(-50%); background: #fffe;
@@ -64,9 +65,23 @@ button:disabled { opacity: .45; }
 .modal { position: absolute; inset: 0; background: #0006; display: flex; align-items: center; justify-content: center; }
 .modal .box { background: #fff; border-radius: 18px; padding: 18px; display: flex; flex-direction: column; gap: 10px; min-width: 260px; }
 
+.modal .title { font-size: 20px; text-align: center; }
+.shelf { display: grid; grid-template-columns: repeat(5, auto); gap: 8px; }
+.shelf button { display: flex; flex-direction: column; align-items: center; font-size: 34px; padding: 6px 10px; min-width: 76px; }
+.shelf button small { font-size: 14px; }
+.names { display: flex; gap: 10px; }
+.names button { font-size: 22px; padding: 12px 16px; }
+
 .rotate { position: absolute; inset: 0; background: #5d8a2f; color: #fff; display: none;
   align-items: center; justify-content: center; font-size: 28px; text-align: center; }
-@media (orientation: portrait) and (pointer: coarse) { .rotate { display: flex; } }
+@media (orientation: portrait) and (pointer: coarse) { .modal .title { font-size: 20px; text-align: center; }
+.shelf { display: grid; grid-template-columns: repeat(5, auto); gap: 8px; }
+.shelf button { display: flex; flex-direction: column; align-items: center; font-size: 34px; padding: 6px 10px; min-width: 76px; }
+.shelf button small { font-size: 14px; }
+.names { display: flex; gap: 10px; }
+.names button { font-size: 22px; padding: 12px 16px; }
+
+.rotate { display: flex; } }
 </style>
 </head>
 <body>
@@ -97,6 +112,36 @@ button:disabled { opacity: .45; }
     stackMax: 8,
     autosaveInterval: 10,
     saveKey: 'kids-game-save',
+
+    // ペット（第2弾の設計書2節）
+    foodPrice: 2,
+    petMax: 12,
+    petHungerMax: 100,
+    petHungerEvery: 6,             // 何秒でおなかが1減るか
+    petLovePat: 1,
+    petLoveFeed: 3,
+    petPatCooldown: 3,             // 同じペットをなでて増えるのは何秒に1回か
+    heartAt: [5, 15, 30, 50, 80],  // ハート1〜5になる「なかよし」
+    tricks: [{ id: 'spin', hearts: 2 }, { id: 'jump', hearts: 4 }],
+    trickTime: 1,                  // 芸の長さ（秒）
+    petFollowNear: 1.5,            // ついてくるとき、これより近ければ止まる（マス）
+    petCatchUpDist: 3,             // これより離れたら速く歩いて追いつく
+    petCatchUpRate: 2,
+    petRepath: 0.5,                // ついてくるときに道を引き直す間隔（秒）
+    petHomeRadius: 4,              // おうちにいるとき、ベッドからどこまで歩くか（マス）
+    petIdleMin: 2,
+    petIdleMax: 5,
+    petSpeeds: { normal: 3, hop: 3, scurry: 3.5, float: 3, slow: 1.5 },
+    petKinds: [
+      { id: 'dog',      label: 'いぬ',       price: 20, move: 'normal' },
+      { id: 'cat',      label: 'ねこ',       price: 20, move: 'normal' },
+      { id: 'rabbit',   label: 'うさぎ',     price: 15, move: 'hop' },
+      { id: 'hamster',  label: 'ハムスター', price: 10, move: 'scurry' },
+      { id: 'hedgehog', label: 'ハリネズミ', price: 10, move: 'scurry' },
+      { id: 'mouse',    label: 'ネズミ',     price: 10, move: 'scurry' },
+      { id: 'parakeet', label: 'インコ',     price: 15, move: 'float' },
+      { id: 'turtle',   label: 'かめ',       price: 15, move: 'slow' },
+    ],
   };
 })(window.Game = window.Game || {});
 </script>
@@ -122,14 +167,33 @@ button:disabled { opacity: .45; }
     },
     burger:  { emoji: '🍔' },
     coin:    { emoji: '🪙' },
+
+    // ペット。size はマスに対する大きさ
+    petCounter: { color: '#4fc3f7', line: '#0288d1' },
+    petClerk: { emoji: '🧑‍🌾' },
+    paw:      { emoji: '🐾' },
+    food:     { emoji: '🦴' },
+    heart:    { emoji: '❤️' },
+    petHungry: { emoji: '🍖' },
+    pets: {
+      dog:      { emoji: '🐕', size: 0.7, names: ['ポチ', 'シロ', 'コロ', 'ハチ', 'クロ', 'マル', 'チョコ', 'モモ'] },
+      cat:      { emoji: '🐈', size: 0.65, names: ['ミケ', 'タマ', 'トラ', 'ミー', 'ルナ', 'ソラ', 'キナコ', 'ニャン'] },
+      rabbit:   { emoji: '🐇', size: 0.6, names: ['ピョン', 'ユキ', 'ミミ', 'モチ', 'ココ', 'ラビ', 'シフォン', 'マシュ'] },
+      hamster:  { emoji: '🐹', size: 0.45, names: ['ハム', 'クルミ', 'ゴマ', 'ポテ', 'チップ', 'まめ', 'プリン', 'もも'] },
+      hedgehog: { emoji: '🦔', size: 0.45, names: ['チク', 'ハリー', 'マロン', 'くり', 'トゲ', 'ぽん', 'モカ', 'ころん'] },
+      mouse:    { emoji: '🐁', size: 0.4, names: ['チュー', 'チーズ', 'ちび', 'ねね', 'ミッキ', 'ピコ', 'こむぎ', 'すず'] },
+      parakeet: { emoji: '🦜', size: 0.5, names: ['ピーちゃん', 'ピッピ', 'ソラ', 'キー', 'ルリ', 'ハル', 'ミドリ', 'ぴよ'] },
+      turtle:   { emoji: '🐢', size: 0.55, names: ['カメキチ', 'のんびり', 'ゆっくり', 'ミドリ', 'こうら', 'トロ', 'カメコ', 'ぷかぷか'] },
+    },
+    trickLabels: { spin: 'くるっと まわる', jump: 'ジャンプ' },
   };
 })(window.Game = window.Game || {});
 </script>
 <script>
-// まちのマス目。床（floor）と上のもの（obj: wall/door/bed/counter）を1マスに1つずつ
+// まちのマス目。床（floor）と上のもの（obj: wall/door/bed/counter/petCounter）を1マスに1つずつ
 (function (G) {
-  const BLOCKING = { wall: true, bed: true, counter: true };
-  const OBJECTS = ['wall', 'door', 'bed', 'counter'];
+  const BLOCKING = { wall: true, bed: true, counter: true, petCounter: true };
+  const OBJECTS = ['wall', 'door', 'bed', 'counter', 'petCounter'];
 
   function create(w, h) {
     return { w, h, floor: new Array(w * h).fill(0), obj: new Array(w * h).fill(null) };
@@ -188,13 +252,22 @@ button:disabled { opacity: .45; }
     return out;
   }
 
+  // (x, y) のまわり（となり・ななめ）にある type の物の key。なければ null
+  function findAdjacent(wd, x, y, type) {
+    for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+      const o = objAt(wd, x + dx, y + dy);
+      if (o && o.type === type) return key(x + dx, y + dy);
+    }
+    return null;
+  }
+
   const DIRS = [[0, 1], [1, 0], [0, -1], [-1, 0]];
   function passableNeighbors(wd, x, y) {
     return DIRS.map(([dx, dy]) => ({ x: x + dx, y: y + dy })).filter(p => isPassable(wd, p.x, p.y));
   }
 
   G.world = { create, inBounds, key, parseKey, objAt, hasFloor, isPassable, canPlace, place, erase,
-    findAll, passableNeighbors, DIRS, BLOCKING };
+    findAll, findAdjacent, passableNeighbors, DIRS, BLOCKING };
 })(window.Game = window.Game || {});
 </script>
 <script>
@@ -276,7 +349,7 @@ button:disabled { opacity: .45; }
 
   function create() {
     const c = G.config;
-    return { x: c.ownBed.x, y: c.ownBed.y + 1, money: c.startMoney, hunger: c.hungerMax, walked: 0, face: 1 };
+    return { x: c.ownBed.x, y: c.ownBed.y + 1, money: c.startMoney, hunger: c.hungerMax, walked: 0, face: 1, food: 0 };
   }
 
   const tile = (p) => ({ x: Math.round(p.x), y: Math.round(p.y) });
@@ -316,7 +389,17 @@ button:disabled { opacity: .45; }
 
   function eat(p) { p.hunger = Math.min(G.config.hungerMax, p.hunger + G.config.burgerHeal); }
 
-  G.player = { create, tile, speed, move, addWalk, eat, fits };
+  // 自分から maxDist マス以内でいちばん近いもの（住人・ペット）。いなければ null
+  function nearest(p, list, maxDist) {
+    let best = null, bd = maxDist;
+    for (const o of list) {
+      const d = Math.hypot(o.x - p.x, o.y - p.y);
+      if (d <= bd) { best = o; bd = d; }
+    }
+    return best;
+  }
+
+  G.player = { create, tile, speed, move, addWalk, eat, fits, nearest };
 })(window.Game = window.Game || {});
 </script>
 <script>
@@ -373,11 +456,7 @@ button:disabled { opacity: .45; }
   // 自分のまわり（となり・ななめ）にあるカウンター
   function nearCounter(s) {
     const pt = G.player.tile(s.player);
-    for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
-      const o = W().objAt(s.world, pt.x + dx, pt.y + dy);
-      if (o && o.type === 'counter') return W().key(pt.x + dx, pt.y + dy);
-    }
-    return null;
+    return W().findAdjacent(s.world, pt.x, pt.y, 'counter');
   }
 
   function buy(s) {
@@ -590,23 +669,231 @@ button:disabled { opacity: .45; }
   }
 
   // 自分のまわり1.5マス以内でいちばん近い住人
-  function near(s) {
-    let best = null, bd = 1.5;
-    for (const r of s.residents) {
-      const d = Math.hypot(r.x - s.player.x, r.y - s.player.y);
-      if (d <= bd) { best = r; bd = d; }
-    }
-    return best;
-  }
+  function near(s) { return G.player.nearest(s.player, s.residents, 1.5); }
 
   G.residents = { NAMES, LINES, create, update, served, talk, near, homeSpot, goShop };
+})(window.Game = window.Game || {});
+</script>
+<script>
+// ペットのお世話の計算（計算だけで画面には関わらない）: おなか・なかよし・ハート・芸・名前の候補
+// しっぱいはない: おなかが空でも何も起きない。なかよしは減らない
+(function (G) {
+  const C = () => G.config;
+
+  // 6秒で1減る。0で止まる
+  function hunger(pet, dt) {
+    pet.hunger = Math.max(0, pet.hunger - dt / C().petHungerEvery);
+  }
+
+  function hearts(love) {
+    return C().heartAt.filter(v => love >= v).length;
+  }
+
+  // 覚えた芸の id
+  function learned(love) {
+    const h = hearts(love);
+    return C().tricks.filter(t => h >= t.hearts).map(t => t.id);
+  }
+
+  // なかよしを足して、ハートが増えたか・新しく覚えた芸を返す
+  function addLove(pet, n) {
+    const h0 = hearts(pet.love), t0 = learned(pet.love);
+    pet.love += n;
+    return { gained: n, heartUp: hearts(pet.love) > h0, newTricks: learned(pet.love).filter(t => t0.indexOf(t) < 0) };
+  }
+
+  // なでる。間隔内は増やさない（ハートは出す）。覚えた芸があれば2回に1回くらいする
+  function pat(pet, now, rng) {
+    const res = now - pet.lastPatAt >= C().petPatCooldown
+      ? (pet.lastPatAt = now, addLove(pet, C().petLovePat))
+      : { gained: 0, heartUp: false, newTricks: [] };
+    const known = learned(pet.love);
+    res.trick = known.length && rng() < 0.5 ? known[Math.floor(rng() * known.length)] : null;
+    return res;
+  }
+
+  function feed(pet) {
+    pet.hunger = C().petHungerMax;
+    return addLove(pet, C().petLoveFeed);
+  }
+
+  // 名前の候補（重ならない4つ）
+  function nameChoices(kind, rng) {
+    const all = G.sprites.pets[kind].names.slice();
+    const out = [];
+    while (out.length < 4 && all.length) out.push(all.splice(Math.floor(rng() * all.length), 1)[0]);
+    return out;
+  }
+
+  G.petCare = { hunger, hearts, learned, pat, feed, nameChoices };
+})(window.Game = window.Game || {});
+</script>
+<script>
+// ペット: ついてくる（follow）か、自分のベッドのまわりでうろうろ（idle ↔ walking）
+// 閉じ込められたら自分のベッドのそばへぱっと戻る（エラーにしない）
+(function (G) {
+  const W = () => G.world, P = () => G.pathfind, C = () => G.config;
+  const tileOf = (p) => ({ x: Math.round(p.x), y: Math.round(p.y) });
+  const kindOf = (id) => C().petKinds.find(k => k.id === id);
+
+  function create(s, kind, name) {
+    const t = G.player.tile(s.player);
+    const p = { id: s.nextId++, kind, name, x: t.x, y: t.y, follow: true,
+      hunger: C().petHungerMax, love: 0, lastPatAt: -1e9 };
+    reset(p);
+    s.pets.push(p);
+    return p;
+  }
+
+  // 歩いている途中・芸など、セーブしなくてよいところを初めにもどす
+  function reset(p) {
+    Object.assign(p, { path: [], state: 'idle', idleUntil: 0, repathAt: 0, trick: null, moving: false });
+    return p;
+  }
+
+  // 読み込んだペット。知らない種類は取り除く
+  function restore(list) { return list.filter(p => p && kindOf(p.kind)).map(reset); }
+
+  // 自分のベッドのとなりの行けるマス。なければベッドの上
+  function homeSpot(s) {
+    const b = C().ownBed;
+    return W().passableNeighbors(s.world, b.x, b.y)[0] || { x: b.x, y: b.y };
+  }
+
+  function warpHome(s, p) {
+    const h = homeSpot(s);
+    Object.assign(p, { x: h.x, y: h.y, path: [] });
+  }
+
+  // いるマスに壁などが置かれたら、となりの行けるマスへ。なければベッドのそばへ
+  function getOut(s, p) {
+    const t = tileOf(p);
+    if (W().isPassable(s.world, t.x, t.y)) return;
+    const n = W().passableNeighbors(s.world, t.x, t.y)[0];
+    if (n) Object.assign(p, { x: n.x, y: n.y, path: [] });
+    else warpHome(s, p);
+  }
+
+  // 道にそって歩く。'moving' | 'arrived' | 'blocked'
+  function walk(s, p, speed, dt) {
+    let left = speed * dt;
+    while (left > 0 && p.path.length) {
+      const t = p.path[0];
+      if (!W().isPassable(s.world, t.x, t.y)) { p.path = []; return 'blocked'; }
+      const dx = t.x - p.x, dy = t.y - p.y, d = Math.hypot(dx, dy);
+      if (d <= left) { p.x = t.x; p.y = t.y; p.path.shift(); left -= d; }
+      else { p.x += dx / d * left; p.y += dy / d * left; left = 0; }
+    }
+    return p.path.length ? 'moving' : 'arrived';
+  }
+
+  // leader（前の子、先頭は自分）の後ろを歩く
+  function followStep(s, p, leader, dt) {
+    const c = C();
+    if (s.job.active) { p.path = []; return; } // アルバイト中はその場で待つ
+    const d = Math.hypot(leader.x - p.x, leader.y - p.y);
+    if (d <= c.petFollowNear) { p.path = []; return; }
+    if (s.time >= p.repathAt) {
+      p.repathAt = s.time + c.petRepath;
+      const lt = tileOf(leader);
+      const path = P().find(s.world, tileOf(p), new Set([W().key(lt.x, lt.y)]));
+      if (!path) { warpHome(s, p); return; }
+      p.path = path;
+    }
+    const speed = c.petSpeeds[kindOf(p.kind).move] * (d >= c.petCatchUpDist ? c.petCatchUpRate : 1);
+    walk(s, p, speed, dt);
+  }
+
+  // 自分のベッドのまわり（まっすぐの距離で半径以内）の行けるマスを選んで歩き、着いたら少し止まる
+  function homeStep(s, p, dt) {
+    const c = C(), b = c.ownBed;
+    if (p.path.length) {
+      if (walk(s, p, c.petSpeeds[kindOf(p.kind).move], dt) === 'moving') return;
+      p.idleUntil = s.time + c.petIdleMin + (c.petIdleMax - c.petIdleMin) * G.rng();
+      return;
+    }
+    if (s.time < p.idleUntil) return;
+    const here = tileOf(p), R = c.petHomeRadius, cands = [];
+    for (let y = b.y - R; y <= b.y + R; y++) for (let x = b.x - R; x <= b.x + R; x++)
+      if (Math.hypot(x - b.x, y - b.y) <= R && W().isPassable(s.world, x, y) && (x !== here.x || y !== here.y))
+        cands.push({ x, y });
+    const goal = cands[Math.floor(G.rng() * cands.length)];
+    const path = goal && P().find(s.world, here, new Set([W().key(goal.x, goal.y)]));
+    if (path) { p.path = path; return; }
+    if (Math.hypot(p.x - b.x, p.y - b.y) > R + 1) warpHome(s, p);
+    p.idleUntil = s.time + 1;
+  }
+
+  function update(s, dt) {
+    let leader = s.player;
+    for (const p of s.pets) {
+      G.petCare.hunger(p, dt);
+      if (p.trick && s.time >= p.trick.until) p.trick = null;
+      getOut(s, p);
+      if (p.follow) { followStep(s, p, leader, dt); leader = p; }
+      else homeStep(s, p, dt);
+      p.moving = p.path.length > 0;
+    }
+  }
+
+  // なでる。芸をすることもある
+  function pat(s, p) {
+    const res = G.petCare.pat(p, s.time, G.rng);
+    if (res.trick) p.trick = { id: res.trick, until: s.time + C().trickTime };
+    return res;
+  }
+
+  function feed(s, p) {
+    if (s.player.food <= 0) return { ok: false, why: 'food' };
+    s.player.food--;
+    return Object.assign({ ok: true }, G.petCare.feed(p));
+  }
+
+  function setFollow(p, on) {
+    p.follow = on;
+    p.path = []; p.idleUntil = 0; p.repathAt = 0;
+  }
+
+  // 自分のまわり1.5マス以内でいちばん近いペット
+  function near(s) { return G.player.nearest(s.player, s.pets, 1.5); }
+
+  G.pets = { kindOf, create, restore, update, pat, feed, setFollow, near, homeSpot };
+})(window.Game = window.Game || {});
+</script>
+<script>
+// ペットやさん: petCounter 1つがお店1軒。店員は表示だけで、行列はない。ペットとえさを買う
+(function (G) {
+  // 自分のまわり（となり・ななめ）にあるペットやさん
+  function nearPetShop(s) {
+    const pt = G.player.tile(s.player);
+    return G.world.findAdjacent(s.world, pt.x, pt.y, 'petCounter');
+  }
+
+  // 買えないときはお金を減らさない。why: 'unknown' | 'full' | 'money'
+  function buyPet(s, kindId, name) {
+    const kind = G.pets.kindOf(kindId);
+    if (!kind) return { ok: false, why: 'unknown' };
+    if (s.pets.length >= G.config.petMax) return { ok: false, why: 'full' };
+    if (s.player.money < kind.price) return { ok: false, why: 'money' };
+    s.player.money -= kind.price;
+    return { ok: true, pet: G.pets.create(s, kindId, name) };
+  }
+
+  function buyFood(s) {
+    if (s.player.money < G.config.foodPrice) return { ok: false, why: 'money' };
+    s.player.money -= G.config.foodPrice;
+    s.player.food++;
+    return { ok: true };
+  }
+
+  G.petShop = { nearPetShop, buyPet, buyFood };
 })(window.Game = window.Game || {});
 </script>
 <script>
 // ゲーム全体の状態（セーブするのはこれ全部）と、1コマ進める処理
 (function (G) {
   G.rng = G.rng || Math.random;
-  const VERSION = 1;
+  const VERSION = 2;
 
   function create() {
     const c = G.config;
@@ -617,12 +904,13 @@ button:disabled { opacity: .45; }
       world,
       player: G.player.create(),
       residents: [],
+      pets: [],
       shops: {},
       job: { active: false, counter: null, deliveries: 0, customerId: null, order: null, stack: [] },
     };
   }
 
-  // 人が立っている（これから入る）マス。ここには壁などを置けない
+  // 人が立っている（これから入る）マス。ここには壁などを置けない（ペットは入れない。置かれたら自分でよける）
   function occupied(s) {
     const set = new Set();
     const add = (x, y) => set.add(G.world.key(Math.round(x), Math.round(y)));
@@ -639,6 +927,7 @@ button:disabled { opacity: .45; }
     s.time += dt;
     G.shop.reconcile(s);
     G.residents.update(s, dt);
+    G.pets.update(s, dt);
     G.shop.update(s, dt);
   }
 
@@ -650,16 +939,28 @@ button:disabled { opacity: .45; }
 (function (G) {
   function serialize(s) { return JSON.stringify(s); }
 
+  // 古い版のデータを今の版にそろえる
+  function migrate(s) {
+    if (s && s.version === 1 && s.player) {
+      s.pets = [];
+      s.player.food = 0;
+      s.version = 2;
+    }
+    return s;
+  }
+
   // 形がおかしければ例外
   function deserialize(text) {
-    const s = JSON.parse(text);
+    const s = migrate(JSON.parse(text));
     const c = G.config;
     const ok = s && s.version === G.state.VERSION && s.world && s.world.w === c.mapW && s.world.h === c.mapH
       && Array.isArray(s.world.floor) && s.world.floor.length === c.mapW * c.mapH
       && Array.isArray(s.world.obj) && s.world.obj.length === c.mapW * c.mapH
       && s.player && typeof s.player.money === 'number' && Array.isArray(s.residents)
-      && s.shops && typeof s.shops === 'object' && s.job && typeof s.time === 'number';
+      && s.shops && typeof s.shops === 'object' && s.job && typeof s.time === 'number'
+      && Array.isArray(s.pets) && typeof s.player.food === 'number';
     if (!ok) throw new Error('bad save');
+    s.pets = G.pets.restore(s.pets); // 知らない種類は取り除き、歩いている途中などは初めから
     s.job.active = false; // 開き直したらアルバイトは終わっている
     s.job.customerId = null; s.job.order = null; s.job.stack = [];
     return s;
@@ -790,6 +1091,39 @@ button:disabled { opacity: .45; }
     ctx.stroke();
   }
 
+  // ペット: 動き方ごとのゆれ、芸、おなかが空の吹き出し、となりにいるときはハート
+  function drawPet(app, pet, sx, sy, now, near) {
+    const { ctx, T } = app, S = G.sprites, sp = S.pets[pet.kind], c = G.config;
+    const move = G.pets.kindOf(pet.kind).move, size = T * sp.size;
+    let lift = 0, angle = 0;
+    if (move === 'hop' && pet.moving) lift = Math.abs(Math.sin(now * 10 + pet.id)) * T * 0.18;
+    if (move === 'float') lift = T * 0.15 + Math.sin(now * 3 + pet.id) * T * 0.05;
+    if (pet.trick) {
+      const k = 1 - Math.max(0, pet.trick.until - app.s.time) / c.trickTime; // 0 → 1
+      if (pet.trick.id === 'spin') angle = k * Math.PI * 2;
+      if (pet.trick.id === 'jump') lift += Math.sin(k * Math.PI) * T * 0.5;
+    }
+    ctx.fillStyle = '#0003';
+    ctx.beginPath(); ctx.ellipse(sx, sy + T * 0.25, size * 0.4, T * 0.08, 0, 0, Math.PI * 2); ctx.fill();
+    const py = sy + T * 0.1 - lift;
+    ctx.save(); ctx.translate(sx, py); ctx.rotate(angle);
+    emoji(ctx, sp.emoji, 0, 0, size);
+    ctx.restore();
+    let top = py - size * 0.6;
+    if (near) {
+      const h = G.petCare.hearts(pet.love);
+      ctx.font = `bold ${Math.round(T * 0.22)}px sans-serif`;
+      ctx.lineWidth = 3; ctx.strokeStyle = '#fff'; ctx.fillStyle = '#333';
+      ctx.strokeText(pet.name, sx, top); ctx.fillText(pet.name, sx, top);
+      top -= T * 0.22;
+      if (h) { emoji(ctx, S.heart.emoji.repeat(h), sx, top, T * 0.2); top -= T * 0.2; }
+    }
+    if (pet.hunger <= 0) {
+      emoji(ctx, '💭', sx + size * 0.5, py - size * 0.6, T * 0.4);
+      emoji(ctx, S.petHungry.emoji, sx + size * 0.5, py - size * 0.62, T * 0.2);
+    }
+  }
+
   function draw(app) {
     const { ctx, T, W, H } = app, s = app.s, S = G.sprites, wd = s.world;
     ctx.setTransform(app.dpr, 0, 0, app.dpr, 0, 0);
@@ -810,6 +1144,10 @@ button:disabled { opacity: .45; }
         emoji(ctx, S.burger.emoji, sx, sy + T * 0.1, T * 0.45);
         const working = s.job.active && s.job.counter === G.world.key(x, y);
         if (!working) emoji(ctx, S.clerk.emoji, sx, sy - T * 0.35, T * 0.6);
+      } else if (o.type === 'petCounter') {
+        tileRect(ctx, sx, sy, T, S.petCounter);
+        emoji(ctx, S.paw.emoji, sx, sy + T * 0.1, T * 0.45);
+        emoji(ctx, S.petClerk.emoji, sx, sy - T * 0.35, T * 0.6);
       } else emoji(ctx, S[o.type].emoji, sx, sy, T * 0.8);
       if (o.own) emoji(ctx, '⭐', sx + T * 0.3, sy - T * 0.3, T * 0.3);
     }
@@ -825,10 +1163,14 @@ button:disabled { opacity: .45; }
     // 人（奥から順に）
     const people = s.residents.map(r => ({ x: r.x, y: r.y, ch: r.look, r }));
     people.push({ x: s.player.x, y: s.player.y, ch: S.player.emoji, me: true });
+    const nearPet = G.pets.near(s);
+    for (const pet of s.pets) people.push({ x: pet.x, y: pet.y, pet, near: pet === nearPet });
     people.sort((a, b) => a.y - b.y);
+    const now = performance.now() / 1000;
     for (const p of people) {
       const { x: sx, y: sy } = toScreen(app, p.x, p.y);
       if (sx < -T || sy < -T || sx > W + T || sy > H + T) continue;
+      if (p.pet) { drawPet(app, p.pet, sx, sy, now, p.near); continue; }
       ctx.fillStyle = '#0003';
       ctx.beginPath(); ctx.ellipse(sx, sy + T * 0.32, T * 0.28, T * 0.1, 0, 0, Math.PI * 2); ctx.fill();
       emoji(ctx, p.ch, sx, sy - T * 0.05, T * 0.8);
@@ -856,7 +1198,7 @@ button:disabled { opacity: .45; }
 })(window.Game = window.Game || {});
 </script>
 <script>
-// 画面の上に重ねる表示（DOM）: 上の表示・ボタン・つくるパレット・アルバイト画面・メニュー
+// 画面の上に重ねる表示（DOM）: 上の表示・ボタン・つくるパレット・アルバイト画面・メニュー・ペットやさん
 (function (G) {
   const S = () => G.sprites;
   let root, els = {}, last = {}, app;
@@ -885,6 +1227,7 @@ button:disabled { opacity: .45; }
     { id: 'door', icon: () => S().door.emoji, label: 'ドア' },
     { id: 'bed', icon: () => S().bed.emoji, label: 'ベッド' },
     { id: 'counter', icon: () => S().burger.emoji, label: 'カウンター' },
+    { id: 'petCounter', icon: () => S().paw.emoji, label: 'ペットやさん' },
     { id: 'erase', icon: () => '🧽', label: 'けす' },
   ];
 
@@ -894,15 +1237,20 @@ button:disabled { opacity: .45; }
     els.money = h('span', { class: 'pill', 'data-t': 'money' });
     els.bar = h('div', { class: 'bar' }, h('i'));
     els.hunger = h('span', { class: 'pill hunger' }, 'おなか', els.bar);
+    els.food = h('span', { class: 'pill', 'data-t': 'food' });
     els.build = btn('', () => app.toggleBuild(), { 'data-t': 'build' });
     els.menu = btn('≡', () => openMenu());
-    root.append(h('div', { class: 'hud' }, els.money, els.hunger, h('span', { class: 'spacer' }), els.build, els.menu));
+    root.append(h('div', { class: 'hud' }, els.money, els.food, els.hunger, h('span', { class: 'spacer' }), els.build, els.menu));
 
     els.actions = h('div', { class: 'actions' });
     els.talk = btn('💬 はなす', () => app.talk(), { 'data-t': 'talk' });
     els.buy = btn('', () => app.buy(), { 'data-t': 'buy' });
     els.work = btn('🧑‍🍳 アルバイト', () => app.startJob(), { 'data-t': 'work' });
-    els.actions.append(els.talk, els.buy, els.work);
+    els.petShop = btn(`${S().paw.emoji} かう`, () => openShelf(), { 'data-t': 'petshop' });
+    els.pat = btn('🖐️ なでる', () => app.pat(), { 'data-t': 'pat' });
+    els.feed = btn(`${S().food.emoji} えさ`, () => app.feed(), { 'data-t': 'feed' });
+    els.follow = btn('', () => app.toggleFollow(), { 'data-t': 'follow' });
+    els.actions.append(els.talk, els.buy, els.work, els.petShop, els.pat, els.feed, els.follow);
     root.append(els.actions);
 
     els.palette = h('div', { class: 'palette' });
@@ -949,6 +1297,7 @@ button:disabled { opacity: .45; }
   function update() {
     const s = app.s, p = s.player, mode = app.mode;
     set('money', p.money, v => { els.money.textContent = `${S().coin.emoji} ${v}`; });
+    set('food', p.food, v => { els.food.textContent = `${S().food.emoji} ${v}`; els.feed.disabled = v <= 0; });
     set('hunger', Math.ceil(p.hunger), v => {
       els.bar.firstChild.style.width = (v / G.config.hungerMax * 100) + '%';
       els.bar.classList.toggle('empty', v <= 0);
@@ -969,6 +1318,10 @@ button:disabled { opacity: .45; }
       set('near', !!near, v => show(els.talk, v));
       set('counter', !!counter, v => { show(els.buy, v); show(els.work, v); });
       set('price', G.config.burgerPrice, v => { els.buy.innerHTML = `🍔 かう（${v}）`; });
+      const pet = G.pets.near(s);
+      set('petShop', !!G.petShop.nearPetShop(s), v => show(els.petShop, v));
+      set('pet', !!pet, v => { show(els.pat, v); show(els.feed, v); show(els.follow, v); });
+      set('follow', pet ? pet.follow : null, v => { els.follow.innerHTML = v ? '🏠 おうちにいて' : '🐾 ついてきて'; });
     }
 
     if (mode === 'job') {
@@ -996,19 +1349,60 @@ button:disabled { opacity: .45; }
     setTimeout(() => e.remove(), 1000);
   }
 
+  // 画面の上に重ねる箱。戻り値の close で閉じる
+  function modal(...kids) {
+    const box = h('div', { class: 'box' }, ...kids);
+    const m = h('div', { class: 'modal' }, box);
+    root.append(m);
+    return { box, close: () => m.remove() };
+  }
+
   function openMenu() {
-    const close = () => m.remove();
     const file = h('input', { type: 'file', accept: '.json,application/json', style: 'display:none' });
+    const { close } = modal(
+      btn('💾 セーブを ファイルに かきだす', () => { close(); app.exportSave(); }),
+      btn('📂 ファイルから よみこむ', () => file.click()),
+      btn('とじる', close), file);
     file.addEventListener('change', async () => {
       const f = file.files[0]; if (!f) return;
       close();
       app.importSave(await f.text());
     });
-    const m = h('div', { class: 'modal' }, h('div', { class: 'box' },
-      btn('💾 セーブを ファイルに かきだす', () => { close(); app.exportSave(); }),
-      btn('📂 ファイルから よみこむ', () => file.click()),
-      btn('とじる', close), file));
-    root.append(m);
+  }
+
+  // ペットやさんの棚: ペット8種類とえさ。お金が足りないものは押せない
+  function openShelf() {
+    const c = G.config, coin = S().coin.emoji;
+    const money = h('div', { class: 'title' });
+    const grid = h('div', { class: 'shelf' });
+    const items = [];
+    for (const k of c.petKinds) {
+      const b = btn(`${S().pets[k.id].emoji}<small>${k.label}</small><small>${coin} ${k.price}</small>`,
+        () => { close(); openNames(k.id); }, { 'data-pet': k.id });
+      items.push([b, k.price]);
+      grid.append(b);
+    }
+    const food = btn(`${S().food.emoji}<small>えさ</small><small>${coin} ${c.foodPrice}</small>`,
+      () => { app.buyFood(); refresh(); }, { 'data-t': 'buyfood' });
+    items.push([food, c.foodPrice]);
+    grid.append(food);
+    const refresh = () => {
+      const p = app.s.player;
+      money.textContent = `ペットやさん　${coin} ${p.money}　${S().food.emoji} ${p.food}`;
+      for (const [b, price] of items) b.disabled = p.money < price;
+    };
+    const { close } = modal(money, grid, btn('とじる', () => close(), { 'data-t': 'closeshelf' }));
+    refresh();
+  }
+
+  // 名前を候補から選ぶ。選んだら買う。やめたら買わない
+  function openNames(kind) {
+    const sp = S().pets[kind];
+    const row = h('div', { class: 'names' });
+    G.petCare.nameChoices(kind, G.rng).forEach((name, i) =>
+      row.append(btn(name, () => { close(); app.buyPet(kind, name); }, { 'data-name': i })));
+    const { close } = modal(h('div', { class: 'title' }, `${sp.emoji} なまえを えらんでね`), row,
+      btn('やめる', () => close(), { 'data-t': 'cancelname' }));
   }
 
   G.ui = { init, update, toast, pop };
@@ -1021,6 +1415,8 @@ button:disabled { opacity: .45; }
     occupied: 'ひとが いるところには おけないよ',
     ownBed: 'じぶんの ベッドは けせないよ',
     money: 'おかねが たりないよ。アルバイトしよう！',
+    full: 'おうちが いっぱいだよ',
+    food: 'えさを ペットやさんで かってね',
   };
 
   const loaded = G.save.load(localStorage);
@@ -1075,6 +1471,44 @@ button:disabled { opacity: .45; }
   app.deliver = () => {
     const res = G.shop.deliver(app.s);
     if (res.ok) G.ui.pop(`+${res.reward} ${G.sprites.coin.emoji}`);
+  };
+
+  // ペット
+  app.buyPet = (kind, name) => {
+    const res = G.petShop.buyPet(app.s, kind, name);
+    if (res.ok) { G.ui.pop(G.sprites.pets[kind].emoji); G.ui.toast(`${name}が なかまに なったよ！`); }
+    else G.ui.toast(MSG[res.why]);
+  };
+  app.buyFood = () => {
+    const res = G.petShop.buyFood(app.s);
+    if (res.ok) G.ui.pop(`+1 ${G.sprites.food.emoji}`);
+    else G.ui.toast(MSG[res.why]);
+  };
+  // なかよしが増えたときのお知らせ
+  function celebrate(pet, res) {
+    const labels = G.sprites.trickLabels;
+    if (res.newTricks.length) G.ui.toast(`${pet.name}は「${labels[res.newTricks[0]]}」を おぼえたよ！`, 3000);
+    else if (res.heartUp) G.ui.toast(`${pet.name}と なかよしに なったよ！`, 3000);
+  }
+  app.pat = () => {
+    const pet = G.pets.near(app.s);
+    if (!pet) return;
+    G.ui.pop(G.sprites.heart.emoji);
+    celebrate(pet, G.pets.pat(app.s, pet));
+  };
+  app.feed = () => {
+    const pet = G.pets.near(app.s);
+    if (!pet) return;
+    const res = G.pets.feed(app.s, pet);
+    if (!res.ok) { G.ui.toast(MSG[res.why]); return; }
+    G.ui.pop('😋');
+    celebrate(pet, res);
+  };
+  app.toggleFollow = () => {
+    const pet = G.pets.near(app.s);
+    if (!pet) return;
+    G.pets.setFollow(pet, !pet.follow);
+    G.ui.toast(pet.follow ? `${pet.name}「ついていくよ！」` : `${pet.name}「おうちで まってるね」`);
   };
 
   app.exportSave = () => {
