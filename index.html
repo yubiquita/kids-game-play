@@ -39,9 +39,11 @@ button:disabled { opacity: .45; }
   pointer-events: none; }
 
 .palette { position: absolute; left: 50%; transform: translateX(-50%); bottom: 10px; display: flex; gap: 8px;
-  background: #fffc; padding: 8px; border-radius: 18px; }
-.palette button { display: flex; flex-direction: column; align-items: center; font-size: 26px; padding: 6px 10px; min-width: 64px; }
-.palette button small { font-size: 13px; }
+  background: #fffc; padding: 8px; border-radius: 18px; box-sizing: border-box; max-width: calc(100% - 16px);
+  overflow-x: auto; touch-action: pan-x; }
+.palette button { flex-shrink: 0; }
+.palette button { display: flex; flex-direction: column; align-items: center; font-size: 24px; padding: 6px 6px; min-width: 54px; }
+.palette button small { font-size: 12px; white-space: nowrap; }
 .palette button.on { background: #ffe082; outline: 3px solid #ff9800; }
 .swatch { width: 28px; height: 28px; border-radius: 6px; display: inline-block; }
 
@@ -144,6 +146,33 @@ button:disabled { opacity: .45; }
       { id: 'parakeet', label: 'インコ',     price: 15, move: 'float' },
       { id: 'turtle',   label: 'かめ',       price: 15, move: 'slow' },
     ],
+
+    // かぐやさん（第3弾の設計書2〜3節）。action: 自分のボタンの文字 / use: 住人が使う / sit: 上に乗って使う
+    furnitureKinds: [
+      { id: 'chair',  label: 'いす',       price: 5,  action: 'すわる',     use: true,  sit: true },
+      { id: 'desk',   label: 'つくえ',     price: 5,  action: 'べんきょう', use: true,  sit: false },
+      { id: 'sofa',   label: 'ソファ',     price: 10, action: 'ごろごろ',   use: true,  sit: true },
+      { id: 'shelf',  label: 'ほんだな',   price: 10, action: 'よむ',       use: true,  sit: false },
+      { id: 'tv',     label: 'テレビ',     price: 15, action: 'つける',     use: true,  sit: false },
+      { id: 'bath',   label: 'おふろ',     price: 15, action: 'はいる',     use: true,  sit: true },
+      { id: 'piano',  label: 'ピアノ',     price: 20, action: 'ひく',       use: true,  sit: false },
+      { id: 'plush',  label: 'ぬいぐるみ', price: 5,  action: 'だっこ',     use: true,  sit: false },
+      { id: 'flower', label: 'はな',       price: 3,  action: 'におう',     use: false, sit: false },
+      { id: 'fridge', label: 'れいぞうこ', price: 15, action: null,         use: false, sit: false },
+    ],
+    handMax: 3,                    // 手もちのハンバーガー
+    fridgeMax: 99,                 // 冷蔵庫（全部で共通）
+    homeRadius: 4,                 // 住人のベッドからの範囲（まっすぐの距離）
+    furnitureUseMin: 20,           // 家具を使いに行く間隔（秒）
+    furnitureUseMax: 40,
+    furnitureUseTime: 8,           // 家具を使う長さ（秒）
+    wishFirstMin: 50,              // 引っ越してから最初の「ほしい」まで（秒）
+    wishFirstMax: 70,
+    wishNextMin: 150,              // お礼のあと次の「ほしい」まで（秒）
+    wishNextMax: 210,
+    wishReward: 5,
+    happinessMax: 5,
+    tvGlowTime: 3,                 // テレビが光る長さ（秒）
   };
 })(window.Game = window.Game || {});
 </script>
@@ -187,15 +216,34 @@ button:disabled { opacity: .45; }
       parakeet: { emoji: '🦜', size: 0.5, names: ['ピーちゃん', 'ピッピ', 'ソラ', 'キー', 'ルリ', 'ハル', 'ミドリ', 'ぴよ'] },
       turtle:   { emoji: '🐢', size: 0.55, names: ['カメキチ', 'のんびり', 'ゆっくり', 'ミドリ', 'こうら', 'トロ', 'カメコ', 'ぷかぷか'] },
     },
+    // かぐやさん。react: ボタンを押したとき・住人が使っているときの絵
+    furnitureCounter: { color: '#ce93d8', line: '#8e24aa' },
+    furnitureClerk: { emoji: '🧑‍🔧' },
+    furnitureIcon: { emoji: '🛋️' },
+    toGo:     { emoji: '🥡' },
+    sparkle:  { emoji: '✨' },
+    furniture: {
+      chair:  { emoji: '🪑', react: '😌' },
+      desk:   { color: '#8d6e63', line: '#5d4037', react: '✏️' },
+      sofa:   { emoji: '🛋️', react: '😪' },
+      shelf:  { emoji: '📚', react: '📖' },
+      tv:     { emoji: '📺', react: '📺' },
+      bath:   { emoji: '🛁', react: '🫧' },
+      piano:  { emoji: '🎹', react: '🎵' },
+      plush:  { emoji: '🧸', react: '💕' },
+      flower: { emoji: '🌷', react: '🌸' },
+      fridge: { color: '#eceff1', line: '#90a4ae', emoji: '🧊', react: '🧊' },
+    },
     trickLabels: { spin: 'くるっと まわる', jump: 'ジャンプ' },
   };
 })(window.Game = window.Game || {});
 </script>
 <script>
-// まちのマス目。床（floor）と上のもの（obj: wall/door/bed/counter/petCounter）を1マスに1つずつ
+// まちのマス目。床（floor）と上のもの（obj: wall/door/bed/counter/petCounter/furnitureCounter/家具）を1マスに1つずつ
 (function (G) {
-  const BLOCKING = { wall: true, bed: true, counter: true, petCounter: true };
-  const OBJECTS = ['wall', 'door', 'bed', 'counter', 'petCounter'];
+  const BLOCKING = { wall: true, bed: true, counter: true, petCounter: true, furnitureCounter: true };
+  const OBJECTS = ['wall', 'door', 'bed', 'counter', 'petCounter', 'furnitureCounter'];
+  for (const k of G.config.furnitureKinds) { BLOCKING[k.id] = true; OBJECTS.push(k.id); } // 家具は全部通れない
 
   function create(w, h) {
     return { w, h, floor: new Array(w * h).fill(0), obj: new Array(w * h).fill(null) };
@@ -269,7 +317,7 @@ button:disabled { opacity: .45; }
   }
 
   G.world = { create, inBounds, key, parseKey, objAt, hasFloor, isPassable, canPlace, place, erase,
-    findAll, findAdjacent, passableNeighbors, DIRS, BLOCKING };
+    findAll, findAdjacent, passableNeighbors, DIRS, BLOCKING, OBJECTS };
 })(window.Game = window.Game || {});
 </script>
 <script>
@@ -351,7 +399,7 @@ button:disabled { opacity: .45; }
 
   function create() {
     const c = G.config;
-    return { x: c.ownBed.x, y: c.ownBed.y + 1, money: c.startMoney, hunger: c.hungerMax, walked: 0, face: 1, food: 0 };
+    return { x: c.ownBed.x, y: c.ownBed.y + 1, money: c.startMoney, hunger: c.hungerMax, walked: 0, face: 1, food: 0, hand: 0 };
   }
 
   const tile = (p) => ({ x: Math.round(p.x), y: Math.round(p.y) });
@@ -469,6 +517,16 @@ button:disabled { opacity: .45; }
     return { ok: true };
   }
 
+  // もちかえる: 手もちに足す（handMax まで）
+  function buyToGo(s) {
+    const c = G.config;
+    if (s.player.hand >= c.handMax) return { ok: false, why: 'hand' };
+    if (s.player.money < c.burgerPrice) return { ok: false, why: 'money' };
+    s.player.money -= c.burgerPrice;
+    s.player.hand++;
+    return { ok: true };
+  }
+
   function startJob(s, k) {
     Object.assign(s.job, { active: true, counter: k, customerId: null, order: null, stack: [] });
   }
@@ -488,12 +546,140 @@ button:disabled { opacity: .45; }
     return { ok: true, reward };
   }
 
-  G.shop = { reconcile, spotsFor, front, update, nearCounter, buy, startJob, endJob, deliver };
+  G.shop = { reconcile, spotsFor, front, update, nearCounter, buy, buyToGo, startJob, endJob, deliver };
+})(window.Game = window.Game || {});
+</script>
+<script>
+// 住人の「〇〇が ほしいな」: ほしいもの選び・かなったか・お礼としあわせ（計算だけ）
+// 範囲: ベッドからまっすぐの距離 homeRadius 以内
+(function (G) {
+  const C = () => G.config;
+  const between = (min, max, rng) => min + (max - min) * rng();
+  const firstTimer = (rng) => between(C().wishFirstMin, C().wishFirstMax, rng);
+  const nextTimer = (rng) => between(C().wishNextMin, C().wishNextMax, rng);
+
+  // (bed のまわり) 範囲にある家具をすべて { x, y, kind }
+  function nearbyFurniture(s, bed) {
+    const R = C().homeRadius, out = [];
+    for (let y = bed.y - R; y <= bed.y + R; y++) for (let x = bed.x - R; x <= bed.x + R; x++) {
+      if (Math.hypot(x - bed.x, y - bed.y) > R) continue;
+      const o = G.world.objAt(s.world, x, y);
+      if (o && G.furniture.kindOf(o.type)) out.push({ x, y, kind: o.type });
+    }
+    return out;
+  }
+  const nearbyKinds = (s, bed) => new Set(nearbyFurniture(s, bed).map(f => f.kind));
+
+  // 範囲にまだない種類から1つ。全部そろっていれば null
+  function pick(s, r, rng) {
+    const have = nearbyKinds(s, r.bed);
+    const cands = C().furnitureKinds.filter(k => !have.has(k.id));
+    return cands.length ? cands[Math.floor(rng() * cands.length)].id : null;
+  }
+
+  const granted = (s, r) => !!r.wish && nearbyKinds(s, r.bed).has(r.wish);
+
+  // お礼: コインとしあわせ。次の「ほしい」までのタイマーを始める
+  function thank(s, r, rng) {
+    const kind = r.wish;
+    s.player.money += C().wishReward;
+    r.happiness = Math.min(C().happinessMax, (r.happiness || 0) + 1);
+    r.wish = null;
+    r.wishTimer = nextTimer(rng);
+    return { kind, reward: C().wishReward };
+  }
+
+  function tick(s, r, dt, rng) {
+    if (r.wish) return;
+    r.wishTimer -= dt;
+    if (r.wishTimer > 0) return;
+    r.wish = pick(s, r, rng);
+    if (!r.wish) r.wishTimer = nextTimer(rng); // 全部そろっている
+  }
+
+  G.wishes = { firstTimer, nextTimer, nearbyFurniture, nearbyKinds, pick, granted, thank, tick };
+})(window.Game = window.Game || {});
+</script>
+<script>
+// 家具: 解放（1回買うとずっと置ける）、となりの家具、冷蔵庫と手もちのハンバーガー
+(function (G) {
+  const C = () => G.config;
+  const kindOf = (id) => C().furnitureKinds.find(k => k.id === id) || null;
+  const isUnlocked = (s, id) => s.unlocked.indexOf(id) >= 0;
+  function unlock(s, id) { if (!isUnlocked(s, id)) s.unlocked.push(id); }
+
+  // 自分のまわり（となり・ななめ）の家具で、自分にいちばん近い1つ { x, y, kind }。なければ null
+  function near(s) {
+    const p = s.player, pt = G.player.tile(p);
+    let best = null, bd = Infinity;
+    for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+      const x = pt.x + dx, y = pt.y + dy, o = G.world.objAt(s.world, x, y);
+      if (!o || !kindOf(o.type)) continue;
+      const d = Math.hypot(x - p.x, y - p.y);
+      if (d < bd) { bd = d; best = { x, y, kind: o.type }; }
+    }
+    return best;
+  }
+
+  // 手もちを全部しまう。入りきらない分は手もちに残す
+  function stash(s) {
+    const n = Math.min(s.player.hand, C().fridgeMax - s.fridge);
+    if (n <= 0) return { ok: false, why: s.player.hand ? 'fridgeFull' : 'empty' };
+    s.player.hand -= n; s.fridge += n;
+    return { ok: true, n };
+  }
+
+  // 手もちが handMax になるまで出す
+  function takeOut(s) {
+    const n = Math.min(s.fridge, C().handMax - s.player.hand);
+    if (n <= 0) return { ok: false, why: s.fridge ? 'hand' : 'empty' };
+    s.fridge -= n; s.player.hand += n;
+    return { ok: true, n };
+  }
+
+  function eatHand(s) {
+    if (s.player.hand <= 0) return { ok: false, why: 'empty' };
+    s.player.hand--;
+    G.player.eat(s.player);
+    return { ok: true };
+  }
+
+  // 読み込んだとき: 知らない家具（表から消したものなど）をマスと解放リストから取り除く
+  function restoreWorld(s) {
+    const known = new Set(G.world.OBJECTS);
+    s.world.obj = s.world.obj.map(o => (o && !known.has(o.type) ? null : o));
+    s.unlocked = s.unlocked.filter(id => kindOf(id));
+  }
+
+  G.furniture = { kindOf, isUnlocked, unlock, near, stash, takeOut, eatHand, restoreWorld };
+})(window.Game = window.Game || {});
+</script>
+<script>
+// かぐやさん: furnitureCounter 1つがお店1軒。店員は表示だけで、行列はない。家具を買う（解放する）
+(function (G) {
+  function nearShop(s) {
+    const pt = G.player.tile(s.player);
+    return G.world.findAdjacent(s.world, pt.x, pt.y, 'furnitureCounter');
+  }
+
+  // 買えないときはお金を減らさない。why: 'unknown' | 'owned' | 'money'
+  function buy(s, id) {
+    const kind = G.furniture.kindOf(id);
+    if (!kind) return { ok: false, why: 'unknown' };
+    if (G.furniture.isUnlocked(s, id)) return { ok: false, why: 'owned' };
+    if (s.player.money < kind.price) return { ok: false, why: 'money' };
+    s.player.money -= kind.price;
+    G.furniture.unlock(s, id);
+    return { ok: true, kind };
+  }
+
+  G.furnitureShop = { nearShop, buy };
 })(window.Game = window.Game || {});
 </script>
 <script>
 // 住人: ベッドを置くと引っ越してくる。家とハンバーガー屋を行き来する
 // 状態: arriving → home → toShop → queued → returning → home … / ベッドが消えたら leaving
+//       家にいるとき、ときどき home → toFurniture → using → returning（家の近くの家具を使う）
 (function (G) {
   const W = () => G.world, P = () => G.pathfind;
   const NAMES = ['たろう', 'はなこ', 'けんた', 'さくら', 'ゆうと', 'みさき', 'そうた', 'あおい',
@@ -506,6 +692,8 @@ button:disabled { opacity: .45; }
     noShop: ['ハンバーガーやさんが あればなあ'],
     cantReach: ['おみせに いけないよ〜'],
     full: ['おみせ こんでるね。あとで いこう'],
+    happy: ['まいにち たのしい！', 'このまち だいすき！'],
+    allSet: ['すてきな おうちで うれしい！'],
   };
 
   const bedKey = (r) => W().key(r.bed.x, r.bed.y);
@@ -524,6 +712,8 @@ button:disabled { opacity: .45; }
       bed: { x: bed.x, y: bed.y }, x: 0, y: 0, path: [], goal: null, state: 'arriving',
       mood: 'normal', shopKey: null, spot: null, queuedAt: 0, lastServed: -1e9,
       hungerTimer: G.config.residentHungerInterval * (0.3 + 0.4 * G.rng()), pullBlockedUntil: 0,
+      wish: null, wishTimer: G.wishes.firstTimer(G.rng), happiness: 0,
+      useTimer: useInterval(), useKey: null, useFrom: null, useUntil: 0,
     };
     const home = homeSpot(s, r);
     const out = P().find(s.world, home, P().edgeKeys(s.world));
@@ -532,6 +722,52 @@ button:disabled { opacity: .45; }
     setGoal(s, r, home);
     s.residents.push(r);
     return r;
+  }
+
+  const useInterval = () => { const c = G.config; return c.furnitureUseMin + (c.furnitureUseMax - c.furnitureUseMin) * G.rng(); };
+
+  // 家具の上に座っていたら、となりのマスへ戻る。使っている家具をはなす
+  function standUp(r) {
+    if (r.useFrom) { r.x = r.useFrom.x; r.y = r.useFrom.y; }
+    r.useFrom = null; r.useKey = null;
+  }
+
+  // useKey の家具がまだあるか
+  function furnitureAt(s, k) {
+    if (!k) return null;
+    const { x, y } = W().parseKey(k), o = W().objAt(s.world, x, y);
+    return o && G.furniture.kindOf(o.type) ? G.furniture.kindOf(o.type) : null;
+  }
+
+  // 家の近くの家具（住人が使うもの・ほかの人が使っていないもの）へ向かう。行けなければ false
+  function goFurniture(s, r) {
+    const taken = new Set(s.residents.filter(o => o !== r && o.useKey).map(o => o.useKey));
+    const cands = G.wishes.nearbyFurniture(s, r.bed)
+      .filter(f => G.furniture.kindOf(f.kind).use && !taken.has(W().key(f.x, f.y)));
+    while (cands.length) {
+      const f = cands.splice(Math.floor(G.rng() * cands.length), 1)[0];
+      const goals = new Set(W().passableNeighbors(s.world, f.x, f.y).map(p => W().key(p.x, p.y)));
+      const path = goals.size && P().find(s.world, tileOf(r), goals);
+      if (!path) continue;
+      r.useKey = W().key(f.x, f.y);
+      r.goal = path.length ? path[path.length - 1] : tileOf(r);
+      r.path = path;
+      r.state = 'toFurniture';
+      return true;
+    }
+    return false;
+  }
+
+  // 着いた: 座る家具なら上に乗る
+  function startUsing(s, r) {
+    const kind = furnitureAt(s, r.useKey);
+    r.state = 'using';
+    r.useUntil = s.time + G.config.furnitureUseTime;
+    if (kind && kind.sit) {
+      r.useFrom = tileOf(r);
+      const { x, y } = W().parseKey(r.useKey);
+      r.x = x; r.y = y;
+    }
   }
 
   // 目的地を決めて道を引く。行けなければ false
@@ -560,17 +796,20 @@ button:disabled { opacity: .45; }
   }
 
   function warpHome(s, r) {
+    standUp(r);
     const h = homeSpot(s, r);
     Object.assign(r, { x: h.x, y: h.y, path: [], goal: null, state: 'home', shopKey: null, spot: null });
   }
 
   function goHome(s, r) {
+    standUp(r);
     r.shopKey = null; r.spot = null;
     r.state = 'returning';
     if (!setGoal(s, r, homeSpot(s, r))) warpHome(s, r);
   }
 
   function startLeaving(s, r) {
+    standUp(r);
     r.state = 'leaving'; r.shopKey = null; r.spot = null;
     const path = P().find(s.world, tileOf(r), P().edgeKeys(s.world));
     if (!path) { r.gone = true; return; }
@@ -634,6 +873,7 @@ button:disabled { opacity: .45; }
     for (const r of s.residents) {
       if (r.gone) continue;
       if (r.mood === 'ate' && s.time - r.lastServed > 30) r.mood = 'normal';
+      if (r.state !== 'leaving') G.wishes.tick(s, r, dt, G.rng);
       switch (r.state) {
         case 'arriving':
         case 'returning': {
@@ -644,8 +884,35 @@ button:disabled { opacity: .45; }
         }
         case 'home':
           r.hungerTimer -= dt;
-          if (r.hungerTimer <= 0 && !goShop(s, r)) r.hungerTimer = G.config.retryInterval;
+          if (r.hungerTimer <= 0) {
+            if (!goShop(s, r)) r.hungerTimer = G.config.retryInterval;
+            break;
+          }
+          r.useTimer -= dt;
+          if (r.useTimer <= 0) {
+            r.useTimer = useInterval();
+            goFurniture(s, r);
+          }
           break;
+        case 'toFurniture':
+        case 'using': {
+          if (!furnitureAt(s, r.useKey)) { goHome(s, r); break; }
+          r.hungerTimer -= dt;
+          if (r.hungerTimer <= 0) {
+            // おなかがすいたら、使うのをやめてお店へ。行けなければ続ける
+            const from = r.useFrom, key = r.useKey, pos = { x: r.x, y: r.y };
+            standUp(r);
+            if (goShop(s, r)) break;
+            r.hungerTimer = G.config.retryInterval;
+            r.useFrom = from; r.useKey = key; r.x = pos.x; r.y = pos.y;
+          }
+          if (r.state === 'toFurniture') {
+            const st = walk(s, r, dt);
+            if (st === 'arrived') startUsing(s, r);
+            else if (st === 'blocked') goHome(s, r);
+          } else if (s.time >= r.useUntil) goHome(s, r);
+          break;
+        }
         case 'toShop': {
           const st = walk(s, r, dt);
           if (st === 'arrived') { r.state = 'queued'; r.queuedAt = s.time; }
@@ -663,17 +930,36 @@ button:disabled { opacity: .45; }
     if (s.job.active) pullForJob(s);
   }
 
+  const oneOf = (lines) => lines[Math.floor(G.rng() * lines.length)];
+
+  // はなす。ほしいものがかなっていたらお礼をくれる。戻り値 { text, reward }（reward はお礼のときだけ）
   function talk(s, r) {
-    let mood = r.mood;
-    if (r.state === 'toShop' || r.state === 'queued') mood = 'hungry';
-    const lines = LINES[mood] || LINES.normal;
-    return lines[Math.floor(G.rng() * lines.length)];
+    if (G.wishes.granted(s, r)) {
+      const res = G.wishes.thank(s, r, G.rng);
+      return { text: `${G.furniture.kindOf(res.kind).label} ありがとう！`, reward: res.reward };
+    }
+    if (r.state === 'toShop' || r.state === 'queued') return { text: oneOf(LINES.hungry) };
+    if (r.wish) return { text: `${G.furniture.kindOf(r.wish).label}が ほしいな` };
+    if (r.mood === 'normal' && !G.wishes.pick(s, r, () => 0)) return { text: oneOf(LINES.allSet) };
+    if (r.mood === 'normal' && r.happiness >= 3) return { text: oneOf(LINES.happy) };
+    return { text: oneOf(LINES[r.mood] || LINES.normal) };
+  }
+
+  // 読み込んだとき: 家具へ向かう途中・使っている途中は家にいることにする。足りない項目をうめる
+  function restore(s, r) {
+    if (!r.wish || !G.furniture.kindOf(r.wish)) r.wish = null;
+    if (typeof r.happiness !== 'number') r.happiness = 0;
+    if (typeof r.wishTimer !== 'number') r.wishTimer = G.wishes.firstTimer(G.rng);
+    if (typeof r.useTimer !== 'number') r.useTimer = useInterval();
+    if (r.state === 'toFurniture' || r.state === 'using') warpHome(s, r);
+    r.useKey = null; r.useFrom = null; r.useUntil = 0;
+    return r;
   }
 
   // 自分のまわり1.5マス以内でいちばん近い住人
   function near(s) { return G.player.nearest(s.player, s.residents, 1.5); }
 
-  G.residents = { NAMES, LINES, create, update, served, talk, near, homeSpot, goShop };
+  G.residents = { NAMES, LINES, create, update, served, talk, near, homeSpot, goShop, restore };
 })(window.Game = window.Game || {});
 </script>
 <script>
@@ -895,7 +1181,7 @@ button:disabled { opacity: .45; }
 // ゲーム全体の状態（セーブするのはこれ全部）と、1コマ進める処理
 (function (G) {
   G.rng = G.rng || Math.random;
-  const VERSION = 2;
+  const VERSION = 3;
 
   function create() {
     const c = G.config;
@@ -907,6 +1193,7 @@ button:disabled { opacity: .45; }
       player: G.player.create(),
       residents: [],
       pets: [],
+      fridge: 0, unlocked: [],
       shops: {},
       job: { active: false, counter: null, deliveries: 0, customerId: null, order: null, stack: [] },
     };
@@ -921,6 +1208,7 @@ button:disabled { opacity: .45; }
     for (const r of s.residents) {
       add(r.x, r.y);
       if (r.path.length) add(r.path[0].x, r.path[0].y);
+      if (r.useFrom) add(r.useFrom.x, r.useFrom.y); // 家具に座っている人が戻るマス
     }
     return set;
   }
@@ -948,6 +1236,12 @@ button:disabled { opacity: .45; }
       s.player.food = 0;
       s.version = 2;
     }
+    if (s && s.version === 2 && s.player) {
+      s.player.hand = 0;
+      s.fridge = 0;
+      s.unlocked = [];
+      s.version = 3; // 住人に足す項目は deserialize の residents.restore でうめる
+    }
     return s;
   }
 
@@ -960,9 +1254,12 @@ button:disabled { opacity: .45; }
       && Array.isArray(s.world.obj) && s.world.obj.length === c.mapW * c.mapH
       && s.player && typeof s.player.money === 'number' && Array.isArray(s.residents)
       && s.shops && typeof s.shops === 'object' && s.job && typeof s.time === 'number'
-      && Array.isArray(s.pets) && typeof s.player.food === 'number';
+      && Array.isArray(s.pets) && typeof s.player.food === 'number'
+      && typeof s.player.hand === 'number' && typeof s.fridge === 'number' && Array.isArray(s.unlocked);
     if (!ok) throw new Error('bad save');
     s.pets = G.pets.restore(s.pets); // 知らない種類は取り除き、歩いている途中などは初めから
+    G.furniture.restoreWorld(s); // 知らない家具は取り除く
+    for (const r of s.residents) G.residents.restore(s, r);
     s.job.active = false; // 開き直したらアルバイトは終わっている
     s.job.customerId = null; s.job.order = null; s.job.stack = [];
     return s;
@@ -1126,6 +1423,25 @@ button:disabled { opacity: .45; }
     }
   }
 
+  // 住人の吹き出し: おなか（🍖ではなく🍔）＞ ほしいもの（💭、かなっていれば ✨）。使っている家具の絵。となりならハート
+  function drawResidentExtras(app, r, sx, sy, near) {
+    const { ctx, T } = app, S = G.sprites;
+    if (r.state === 'toShop' || r.state === 'queued') {
+      emoji(ctx, '💭', sx + T * 0.35, sy - T * 0.5, T * 0.45);
+      emoji(ctx, S.burger.emoji, sx + T * 0.35, sy - T * 0.52, T * 0.22);
+    } else if (r.wish) {
+      const ok = G.wishes.granted(app.s, r), sp = S.furniture[r.wish];
+      emoji(ctx, ok ? S.sparkle.emoji : '💭', sx + T * 0.35, sy - T * 0.5, T * 0.45);
+      if (sp.emoji) emoji(ctx, sp.emoji, sx + T * 0.35, sy - T * 0.52, T * 0.22);
+      else { ctx.fillStyle = sp.color; ctx.fillRect(sx + T * 0.27, sy - T * 0.6, T * 0.16, T * 0.16); }
+    }
+    if (r.state === 'using' && r.useKey) {
+      const { x, y } = G.world.parseKey(r.useKey), o = G.world.objAt(app.s.world, x, y);
+      if (o && S.furniture[o.type]) emoji(ctx, S.furniture[o.type].react, sx - T * 0.35, sy - T * 0.45, T * 0.3);
+    }
+    if (near && r.happiness) emoji(ctx, S.heart.emoji.repeat(r.happiness), sx, sy - T * 0.62, T * 0.18);
+  }
+
   function draw(app) {
     const { ctx, T, W, H } = app, s = app.s, S = G.sprites, wd = s.world;
     ctx.setTransform(app.dpr, 0, 0, app.dpr, 0, 0);
@@ -1150,6 +1466,17 @@ button:disabled { opacity: .45; }
         tileRect(ctx, sx, sy, T, S.petCounter);
         emoji(ctx, S.paw.emoji, sx, sy + T * 0.1, T * 0.45);
         emoji(ctx, S.petClerk.emoji, sx, sy - T * 0.35, T * 0.6);
+      } else if (o.type === 'furnitureCounter') {
+        tileRect(ctx, sx, sy, T, S.furnitureCounter);
+        emoji(ctx, S.furnitureIcon.emoji, sx, sy + T * 0.1, T * 0.45);
+        emoji(ctx, S.furnitureClerk.emoji, sx, sy - T * 0.35, T * 0.6);
+      } else if (S.furniture[o.type]) {
+        const sp = S.furniture[o.type];
+        if (sp.color) tileRect(ctx, sx, sy, T, sp);
+        if (o.type === 'tv' && app.tvGlow && app.tvGlow.key === G.world.key(x, y) && s.time < app.tvGlow.until) {
+          ctx.fillStyle = '#fff59d'; ctx.beginPath(); ctx.arc(sx, sy, T * 0.5, 0, Math.PI * 2); ctx.fill();
+        }
+        if (sp.emoji) emoji(ctx, sp.emoji, sx, sy, T * (sp.color ? 0.55 : 0.8));
       } else emoji(ctx, S[o.type].emoji, sx, sy, T * 0.8);
       if (o.own) emoji(ctx, '⭐', sx + T * 0.3, sy - T * 0.3, T * 0.3);
     }
@@ -1165,7 +1492,7 @@ button:disabled { opacity: .45; }
     // 人（奥から順に）
     const people = s.residents.map(r => ({ x: r.x, y: r.y, ch: r.look, r }));
     people.push({ x: s.player.x, y: s.player.y, ch: S.player.emoji, me: true });
-    const nearPet = G.pets.near(s);
+    const nearPet = G.pets.near(s), nearRes = G.residents.near(s);
     for (const pet of s.pets) people.push({ x: pet.x, y: pet.y, pet, near: pet === nearPet });
     people.sort((a, b) => a.y - b.y);
     const now = performance.now() / 1000;
@@ -1179,10 +1506,7 @@ button:disabled { opacity: .45; }
       if (p.me) {
         ctx.fillStyle = '#ff5722';
         ctx.beginPath(); ctx.moveTo(sx, sy - T * 0.5); ctx.lineTo(sx - 7, sy - T * 0.62); ctx.lineTo(sx + 7, sy - T * 0.62); ctx.fill();
-      } else if (p.r.state === 'toShop' || p.r.state === 'queued') {
-        emoji(ctx, '💭', sx + T * 0.35, sy - T * 0.5, T * 0.45);
-        emoji(ctx, S.burger.emoji, sx + T * 0.35, sy - T * 0.52, T * 0.22);
-      }
+      } else drawResidentExtras(app, p.r, sx, sy, p.r === nearRes);
     }
 
     // ぷにコン
@@ -1200,10 +1524,10 @@ button:disabled { opacity: .45; }
 })(window.Game = window.Game || {});
 </script>
 <script>
-// 画面の上に重ねる表示（DOM）: 上の表示・ボタン・つくるパレット・アルバイト画面・メニュー・ペットやさん
+// 画面の上に重ねる表示（DOM）: 上の表示・ボタン・つくるパレット・アルバイト画面・メニュー・ペットやさん・かぐやさん
 (function (G) {
   const S = () => G.sprites;
-  let root, els = {}, last = {}, app;
+  let root, els = {}, last = {}, app, tab = 'parts'; // tab: パレットの列 'parts' | 'furniture'
 
   function h(tag, attrs, ...kids) {
     const e = document.createElement(tag);
@@ -1230,8 +1554,15 @@ button:disabled { opacity: .45; }
     { id: 'bed', icon: () => S().bed.emoji, label: 'ベッド' },
     { id: 'counter', icon: () => S().burger.emoji, label: 'カウンター' },
     { id: 'petCounter', icon: () => S().paw.emoji, label: 'ペットやさん' },
-    { id: 'erase', icon: () => '🧽', label: 'けす' },
+    { id: 'furnitureCounter', icon: () => S().furnitureIcon.emoji, label: 'かぐやさん' },
   ];
+  const ERASE = { id: 'erase', icon: () => '🧽', label: 'けす' };
+
+  // 家具の絵（絵文字がなければ色の四角）
+  function furnIcon(id) {
+    const sp = S().furniture[id];
+    return sp.emoji || `<span class="swatch" style="background:${sp.color}"></span>`;
+  }
 
   function init(a) {
     app = a;
@@ -1240,9 +1571,10 @@ button:disabled { opacity: .45; }
     els.bar = h('div', { class: 'bar' }, h('i'));
     els.hunger = h('span', { class: 'pill hunger' }, 'おなか', els.bar);
     els.food = h('span', { class: 'pill', 'data-t': 'food' });
+    els.hand = h('span', { class: 'pill', 'data-t': 'hand' });
     els.build = btn('', () => app.toggleBuild(), { 'data-t': 'build' });
     els.menu = btn('≡', () => openMenu());
-    root.append(h('div', { class: 'hud' }, els.money, els.food, els.hunger, h('span', { class: 'spacer' }), els.build, els.menu));
+    root.append(h('div', { class: 'hud' }, els.money, els.food, els.hand, els.hunger, h('span', { class: 'spacer' }), els.build, els.menu));
 
     els.actions = h('div', { class: 'actions' });
     els.talk = btn('💬 はなす', () => app.talk(), { 'data-t': 'talk' });
@@ -1252,20 +1584,47 @@ button:disabled { opacity: .45; }
     els.pat = btn('🖐️ なでる', () => app.pat(), { 'data-t': 'pat' });
     els.feed = btn(`${S().food.emoji} えさ`, () => app.feed(), { 'data-t': 'feed' });
     els.follow = btn('', () => app.toggleFollow(), { 'data-t': 'follow' });
-    els.actions.append(els.talk, els.buy, els.work, els.petShop, els.pat, els.feed, els.follow);
+    els.toGo = btn('', () => app.toGo(), { 'data-t': 'togo' });
+    els.eat = btn(`${S().burger.emoji} たべる`, () => app.eatHand(), { 'data-t': 'eat' });
+    els.furnShop = btn(`${S().furnitureIcon.emoji} かう`, () => openFurnitureShelf(), { 'data-t': 'furnshop' });
+    els.furnAct = btn('', () => app.furnitureAct(), { 'data-t': 'furnact' });
+    els.stash = btn('🧊 しまう', () => app.stash(), { 'data-t': 'stash' });
+    els.takeOut = btn('', () => app.takeOut(), { 'data-t': 'takeout' });
+    els.actions.append(els.talk, els.buy, els.toGo, els.work, els.eat, els.petShop, els.pat, els.feed, els.follow,
+      els.furnShop, els.furnAct, els.stash, els.takeOut);
     root.append(els.actions);
 
     els.palette = h('div', { class: 'palette' });
-    for (const t of TOOLS) {
-      const b = btn(`${t.icon()}<small>${t.label}</small>`, () => { app.tool = t.id; }, { 'data-tool': t.id });
-      els.palette.append(b);
-    }
     root.append(els.palette);
+    buildPalette();
 
     buildJob();
     els.toast = h('div', { class: 'toast', style: 'display:none' });
     root.append(els.toast);
     root.append(h('div', { class: 'rotate' }, 'スマホを よこに してね 📱↻'));
+  }
+
+  const toolBtn = (id, icon, label) => btn(`${icon}<small>${label}</small>`, () => { app.tool = id; }, { 'data-tool': id });
+
+  // パレットを今の列で作り直す。家具の列は、買った家具だけ
+  function buildPalette() {
+    els.palette.replaceChildren();
+    if (tab === 'parts') {
+      for (const t of TOOLS) els.palette.append(toolBtn(t.id, t.icon(), t.label));
+      els.palette.append(btn(`${S().furniture.chair.emoji}<small>かぐ</small>`, () => openFurnitureTab(), { 'data-t': 'furntab' }));
+    } else {
+      els.palette.append(btn('↩️<small>もどる</small>', () => { tab = 'parts'; buildPalette(); }, { 'data-t': 'partstab' }));
+      for (const k of G.config.furnitureKinds)
+        if (G.furniture.isUnlocked(app.s, k.id)) els.palette.append(toolBtn(k.id, furnIcon(k.id), k.label));
+    }
+    els.palette.append(toolBtn(ERASE.id, ERASE.icon(), ERASE.label));
+    last.tool = undefined; // 選んでいる部品の印を付け直す
+  }
+
+  function openFurnitureTab() {
+    if (!app.s.unlocked.length) { toast('かぐやさんで かうと おけるよ'); return; }
+    tab = 'furniture';
+    buildPalette();
   }
 
   function buildJob() {
@@ -1300,6 +1659,16 @@ button:disabled { opacity: .45; }
     const s = app.s, p = s.player, mode = app.mode;
     set('money', p.money, v => { els.money.textContent = `${S().coin.emoji} ${v}`; });
     set('food', p.food, v => { els.food.textContent = `${S().food.emoji} ${v}`; els.feed.disabled = v <= 0; });
+    set('hand', p.hand, v => {
+      els.hand.textContent = `${S().burger.emoji} ${v}`;
+      els.toGo.disabled = v >= G.config.handMax;
+      els.stash.disabled = v <= 0;
+    });
+    set('fridge', `${s.fridge},${p.hand}`, () => {
+      els.takeOut.innerHTML = `🧊 とりだす（のこり ${s.fridge}）`;
+      els.takeOut.disabled = s.fridge <= 0 || p.hand >= G.config.handMax;
+    });
+    set('unlocked', s.unlocked.join(), () => { if (tab === 'furniture') buildPalette(); });
     set('hunger', Math.ceil(p.hunger), v => {
       els.bar.firstChild.style.width = (v / G.config.hungerMax * 100) + '%';
       els.bar.classList.toggle('empty', v <= 0);
@@ -1318,8 +1687,19 @@ button:disabled { opacity: .45; }
     if (mode === 'walk') {
       const near = G.residents.near(s), counter = G.shop.nearCounter(s);
       set('near', !!near, v => show(els.talk, v));
-      set('counter', !!counter, v => { show(els.buy, v); show(els.work, v); });
-      set('price', G.config.burgerPrice, v => { els.buy.innerHTML = `🍔 かう（${v}）`; });
+      set('counter', !!counter, v => { show(els.buy, v); show(els.work, v); show(els.toGo, v); });
+      set('price', G.config.burgerPrice, v => {
+        els.buy.innerHTML = `🍔 かう（${v}）`;
+        els.toGo.innerHTML = `${S().toGo.emoji} もちかえる（${v}）`;
+      });
+      set('eat', p.hand > 0, v => show(els.eat, v));
+      set('furnShop', !!G.furnitureShop.nearShop(s), v => show(els.furnShop, v));
+      const f = G.furniture.near(s), kind = f && G.furniture.kindOf(f.kind);
+      set('furnAct', kind && kind.action ? f.kind : '', v => {
+        show(els.furnAct, !!v);
+        if (v) els.furnAct.innerHTML = `${S().furniture[v].react} ${kind.action}`;
+      });
+      set('nearFridge', !!f && f.kind === 'fridge', v => { show(els.stash, v); show(els.takeOut, v); });
       const pet = G.pets.near(s);
       set('petShop', !!G.petShop.nearPetShop(s), v => show(els.petShop, v));
       set('pet', !!pet, v => { show(els.pat, v); show(els.feed, v); show(els.follow, v); });
@@ -1400,6 +1780,30 @@ button:disabled { opacity: .45; }
     refresh();
   }
 
+  // かぐやさんの棚: 家具10種類。買ったものは ✅、お金が足りないものは押せない
+  function openFurnitureShelf() {
+    const coin = S().coin.emoji;
+    const money = h('div', { class: 'title' });
+    const grid = h('div', { class: 'shelf' });
+    const items = [];
+    for (const k of G.config.furnitureKinds) {
+      const b = btn('', () => { app.buyFurniture(k.id); refresh(); }, { 'data-furn': k.id });
+      items.push([b, k]);
+      grid.append(b);
+    }
+    const refresh = () => {
+      const s = app.s;
+      money.textContent = `かぐやさん　${coin} ${s.player.money}`;
+      for (const [b, k] of items) {
+        const owned = G.furniture.isUnlocked(s, k.id);
+        b.innerHTML = `${furnIcon(k.id)}<small>${k.label}</small><small>${owned ? '✅' : `${coin} ${k.price}`}</small>`;
+        b.disabled = owned || s.player.money < k.price;
+      }
+    };
+    const { close } = modal(money, grid, btn('とじる', () => close(), { 'data-t': 'closefurnshelf' }));
+    refresh();
+  }
+
   // 名前を候補から選ぶ。選んだら買う。やめたら買わない
   function openNames(kind) {
     const sp = S().pets[kind];
@@ -1422,12 +1826,16 @@ button:disabled { opacity: .45; }
     money: 'おかねが たりないよ。アルバイトしよう！',
     full: 'おうちが いっぱいだよ',
     food: 'えさを ペットやさんで かってね',
+    owned: 'もう もってるよ',
+    hand: 'もう もてないよ',
+    fridgeFull: 'れいぞうこが いっぱいだよ',
   };
 
   const loaded = G.save.load(localStorage);
   const app = {
     s: loaded.state, mode: 'walk', tool: 'floor', cam: { x: 0, y: 0 },
     canvas: document.getElementById('screen'), toastUntil: 0, saveTimer: 0, wasHungry: false,
+    tvGlow: null, // テレビが光っている { key, until }（セーブしない）
   };
   app.ctx = app.canvas.getContext('2d');
   app.cam = { x: app.s.player.x, y: app.s.player.y };
@@ -1455,7 +1863,10 @@ button:disabled { opacity: .45; }
 
   app.talk = () => {
     const r = G.residents.near(app.s);
-    if (r) G.ui.toast(`${r.look} ${r.name}「${G.residents.talk(app.s, r)}」`, 3000);
+    if (!r) return;
+    const res = G.residents.talk(app.s, r);
+    G.ui.toast(`${r.look} ${r.name}「${res.text}」`, 3000);
+    if (res.reward) G.ui.pop(`+${res.reward} ${G.sprites.coin.emoji}`);
   };
 
   app.buy = () => {
@@ -1514,6 +1925,37 @@ button:disabled { opacity: .45; }
     if (!pet) return;
     G.pets.setFollow(pet, !pet.follow);
     G.ui.toast(pet.follow ? `${pet.name}「ついていくよ！」` : `${pet.name}「おうちで まってるね」`);
+  };
+
+  // かぐやさん・家具・冷蔵庫
+  app.buyFurniture = (id) => {
+    const res = G.furnitureShop.buy(app.s, id);
+    if (res.ok) { G.ui.pop(G.sprites.furniture[id].emoji || '✅'); G.ui.toast(`${res.kind.label}が おけるように なったよ！`); }
+    else G.ui.toast(MSG[res.why]);
+  };
+  app.toGo = () => {
+    const res = G.shop.buyToGo(app.s);
+    if (res.ok) G.ui.pop(`+1 ${G.sprites.burger.emoji}`);
+    else G.ui.toast(MSG[res.why]);
+  };
+  app.eatHand = () => {
+    if (G.furniture.eatHand(app.s).ok) { G.ui.pop('😋 もぐもぐ'); app.wasHungry = false; }
+  };
+  app.furnitureAct = () => {
+    const f = G.furniture.near(app.s);
+    if (!f) return;
+    G.ui.pop(G.sprites.furniture[f.kind].react);
+    if (f.kind === 'tv') app.tvGlow = { key: G.world.key(f.x, f.y), until: app.s.time + G.config.tvGlowTime };
+  };
+  app.stash = () => {
+    const res = G.furniture.stash(app.s);
+    if (res.ok) G.ui.pop(`🧊 +${res.n}`);
+    else if (MSG[res.why]) G.ui.toast(MSG[res.why]);
+  };
+  app.takeOut = () => {
+    const res = G.furniture.takeOut(app.s);
+    if (res.ok) G.ui.pop(`+${res.n} ${G.sprites.burger.emoji}`);
+    else if (MSG[res.why]) G.ui.toast(MSG[res.why]);
   };
 
   app.exportSave = () => {
