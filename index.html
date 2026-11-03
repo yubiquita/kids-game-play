@@ -86,6 +86,46 @@ button:disabled { opacity: .45; }
 .rotate { position: absolute; inset: 0; background: #5d8a2f; color: #fff; display: none;
   align-items: center; justify-content: center; font-size: 28px; text-align: center; }
 @media (orientation: portrait) and (pointer: coarse) { .rotate { display: flex; } }
+
+/* ゲームセンター */
+.dim { opacity: .45; }
+.palette button.dim { opacity: .45; }
+.crane, .stock { position: absolute; inset: 8px; background: #fce4ec; border-radius: 22px; display: flex;
+  flex-direction: column; gap: 8px; padding: 12px; box-sizing: border-box; }
+.crane .ctop { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.crane .title, .stock .title { font-size: 18px; }
+.crane .meter { font-size: 18px; background: #fff; border-radius: 12px; padding: 2px 10px; }
+.crane .meter:empty { display: none; }
+.cfield { position: relative; flex: 1; min-height: 0; background: #e1f5fe; border: 4px solid #f48fb1;
+  border-radius: 16px; overflow: hidden; }
+.cslots { position: absolute; left: 0; right: 0; bottom: 6px; display: grid; grid-template-columns: repeat(6, 1fr);
+  align-items: end; }
+.cslots > div { text-align: center; font-size: clamp(24px, 11vh, 48px); line-height: 1.1; }
+.chute { background: #f8bbd0; border-radius: 10px; margin: 0 6px; font-size: 20px !important; padding: 6px 0; }
+.arm { position: absolute; top: 0; height: 100%; width: 0; display: flex; flex-direction: column; align-items: center; }
+.arm .rope { width: 4px; background: #757575; flex-shrink: 0; }
+.arm .claw { font-size: clamp(22px, 9vh, 40px); line-height: 1; transform: translateX(0); white-space: nowrap;
+  display: flex; flex-direction: column; align-items: center; }
+.arm .claw span { font-size: .8em; margin-top: -4px; }
+.cmsg { position: absolute; top: 8px; left: 50%; transform: translateX(-50%); font-size: 20px; color: #ad1457;
+  white-space: nowrap; font-weight: bold; }
+.crane .controls, .stock .controls { display: flex; gap: 12px; justify-content: center; }
+.crane .go { font-size: 34px; padding: 8px 40px; background: #ffd54f; touch-action: none; }
+.crane .end, .stock .end { background: #eee; font-size: 22px; padding: 10px 16px; }
+.stock { align-items: center; justify-content: space-between; }
+.srow { display: flex; gap: 10px; }
+.scell { width: clamp(44px, 16vh, 72px); height: clamp(44px, 16vh, 72px); background: #fff; border-radius: 14px;
+  display: flex; align-items: center; justify-content: center; font-size: clamp(26px, 10vh, 44px); }
+.scell.mihon { opacity: .35; outline: 2px dashed #f48fb1; }
+.scell.now { opacity: .55; outline: 4px solid #ff9800; background: #fff3e0; }
+.spick { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
+.spick button { font-size: 30px; padding: 6px 10px; }
+.shake { animation: shake .35s; }
+@keyframes shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-6px); } 75% { transform: translateX(6px); } }
+@media (max-height: 340px) {
+  .crane, .stock { inset: 4px; padding: 8px; gap: 4px; }
+  .spick button { font-size: 24px; padding: 4px 8px; }
+}
 </style>
 </head>
 <body>
@@ -159,6 +199,15 @@ button:disabled { opacity: .45; }
       { id: 'plush',  label: 'ぬいぐるみ', price: 5,  action: 'だっこ',     use: true,  sit: false },
       { id: 'flower', label: 'はな',       price: 3,  action: 'におう',     use: false, sit: false },
       { id: 'fridge', label: 'れいぞうこ', price: 15, action: null,         use: false, sit: false },
+      // ゲームセンターの景品（第4弾の設計書3節）。prize: かぐやさんで売らない / petToy: ペットのおもちゃ / tries: かならず取れる回数
+      { id: 'bigBear',     label: 'おおきいくま', action: 'だっこ',   use: true,  sit: false, prize: true, tries: 6 },
+      { id: 'robot',       label: 'ロボット',     action: 'うごかす', use: true,  sit: false, prize: true, tries: 6 },
+      { id: 'gameConsole', label: 'ゲームき',     action: 'あそぶ',   use: true,  sit: false, prize: true, tries: 5 },
+      { id: 'mirrorBall',  label: 'ミラーボール', action: 'まわす',   use: true,  sit: false, prize: true, tries: 5 },
+      { id: 'dino',        label: 'きょうりゅう', action: 'がおー',   use: true,  sit: false, prize: true, tries: 4 },
+      { id: 'ball',        label: 'ボール',       action: 'ころがす', use: false, sit: false, prize: true, petToy: true, tries: 3 },
+      { id: 'yarn',        label: 'けいとだま',   action: 'ころがす', use: false, sit: false, prize: true, petToy: true, tries: 3 },
+      { id: 'frisbee',     label: 'フリスビー',   action: 'なげる',   use: false, sit: false, prize: true, petToy: true, tries: 3 },
     ],
     handMax: 3,                    // 手もちのハンバーガー
     fridgeMax: 99,                 // 冷蔵庫（全部で共通）
@@ -173,6 +222,27 @@ button:disabled { opacity: .45; }
     wishReward: 5,
     happinessMax: 5,
     tvGlowTime: 3,                 // テレビが光る長さ（秒）
+
+    // ゲームセンター（第4弾の設計書3節）。場所 i の x は i（0〜4）、取り出し口は -1
+    craneCost: 100,                // 台を建てる（消すと全額もどる）
+    cranePlayPrice: 5,
+    craneSlots: 5,
+    craneStockMax: 3,
+    craneCatchBase: 0.25,          // つかめる幅（場所1つぶんを1）
+    craneCatchStep: 0.15,          // メーター1つごとに広がる幅
+    craneArmSpeed: 1.5,            // 場所/秒
+    craneDropTime: 1.2,            // アームが下りて上がるまで（秒）
+    craneResultTime: 1.2,          // 結果を見せる長さ（秒）
+    craneRefillInterval: 90,       // 自動の補充（秒に1つ）
+    craneStockPay: 2,              // ならべる: 置いた数×2コイン
+    craneVisitMin: 60,             // 住人が遊びに行く間隔（秒）
+    craneVisitMax: 120,
+    cranePlayTime: 10,             // 住人が遊ぶ長さ（秒）
+    craneResidentWin: 0.25,        // 住人が景品を取る
+    toyMin: 20,                    // ペットがおもちゃで遊びに行く間隔（秒）
+    toyMax: 40,
+    toyPlayTime: 5,
+    toyLove: 1,
   };
 })(window.Game = window.Game || {});
 </script>
@@ -233,16 +303,28 @@ button:disabled { opacity: .45; }
       plush:  { emoji: '🧸', react: '💕' },
       flower: { emoji: '🌷', react: '🌸' },
       fridge: { color: '#eceff1', line: '#90a4ae', emoji: '🧊', react: '🧊' },
+      // ゲームセンターの景品
+      bigBear:     { emoji: '🐻', react: '🤗' },
+      robot:       { emoji: '🤖', react: '💬' },
+      gameConsole: { emoji: '🎮', react: '👾' },
+      mirrorBall:  { emoji: '🪩', react: '🎵' },
+      dino:        { emoji: '🦖', react: '🦖' },
+      ball:        { emoji: '⚽', react: '⚽' },
+      yarn:        { emoji: '🧶', react: '🧶' },
+      frisbee:     { emoji: '🥏', react: '🥏' },
     },
+    // ゲームセンター
+    crane:    { color: '#f48fb1', line: '#c2185b', emoji: '🕹️', glass: '#e1f5fe' },
+    gift:     { emoji: '🎁' },
     trickLabels: { spin: 'くるっと まわる', jump: 'ジャンプ' },
   };
 })(window.Game = window.Game || {});
 </script>
 <script>
-// まちのマス目。床（floor）と上のもの（obj: wall/door/bed/counter/petCounter/furnitureCounter/家具）を1マスに1つずつ
+// まちのマス目。床（floor）と上のもの（obj: wall/door/bed/counter/petCounter/furnitureCounter/crane/家具）を1マスに1つずつ
 (function (G) {
-  const BLOCKING = { wall: true, bed: true, counter: true, petCounter: true, furnitureCounter: true };
-  const OBJECTS = ['wall', 'door', 'bed', 'counter', 'petCounter', 'furnitureCounter'];
+  const BLOCKING = { wall: true, bed: true, counter: true, petCounter: true, furnitureCounter: true, crane: true };
+  const OBJECTS = ['wall', 'door', 'bed', 'counter', 'petCounter', 'furnitureCounter', 'crane'];
   for (const k of G.config.furnitureKinds) { BLOCKING[k.id] = true; OBJECTS.push(k.id); } // 家具は全部通れない
 
   function create(w, h) {
@@ -570,10 +652,10 @@ button:disabled { opacity: .45; }
   }
   const nearbyKinds = (s, bed) => new Set(nearbyFurniture(s, bed).map(f => f.kind));
 
-  // 範囲にまだない種類から1つ。全部そろっていれば null
+  // 範囲にまだない種類から1つ（ペットのおもちゃは選ばない）。全部そろっていれば null
   function pick(s, r, rng) {
     const have = nearbyKinds(s, r.bed);
-    const cands = C().furnitureKinds.filter(k => !have.has(k.id));
+    const cands = C().furnitureKinds.filter(k => !k.petToy && !have.has(k.id));
     return cands.length ? cands[Math.floor(rng() * cands.length)].id : null;
   }
 
@@ -665,7 +747,7 @@ button:disabled { opacity: .45; }
   // 買えないときはお金を減らさない。why: 'unknown' | 'owned' | 'money'
   function buy(s, id) {
     const kind = G.furniture.kindOf(id);
-    if (!kind) return { ok: false, why: 'unknown' };
+    if (!kind || kind.prize) return { ok: false, why: 'unknown' }; // 景品はクレーンでしか取れない
     if (G.furniture.isUnlocked(s, id)) return { ok: false, why: 'owned' };
     if (s.player.money < kind.price) return { ok: false, why: 'money' };
     s.player.money -= kind.price;
@@ -677,9 +759,259 @@ button:disabled { opacity: .45; }
 })(window.Game = window.Game || {});
 </script>
 <script>
+// クレーンゲームの計算（画面には関わらない）: つかめる幅・つかめたか・補充する景品選び・ならべるの見本
+// 場所 i の x 座標は i（0〜4）。取り出し口とアームの出発点は x = -1
+// しっぱいはない: 外すほど幅が広がり、景品ごとの回数で必ずつかめる。つかめたかに乱数は使わない
+(function (G) {
+  const C = () => G.config;
+  const ARM_START = -1;
+
+  const prizeIds = () => C().furnitureKinds.filter(k => k.prize).map(k => k.id);
+  const triesOf = (id) => G.furniture.kindOf(id).tries;
+  const unowned = (unlocked) => prizeIds().filter(id => unlocked.indexOf(id) < 0);
+  const count = (slots) => slots.filter(Boolean).length;
+  const emptySlots = () => new Array(C().craneSlots).fill(null);
+
+  const catchWidth = (meter) => C().craneCatchBase + C().craneCatchStep * meter;
+
+  // アームにいちばん近い、景品の入っている場所。なければ -1（同じ近さなら左）
+  function nearestSlot(slots, armX) {
+    let best = -1, bd = Infinity;
+    slots.forEach((id, i) => {
+      if (!id) return;
+      const d = Math.abs(i - armX);
+      if (d < bd) { bd = d; best = i; }
+    });
+    return best;
+  }
+
+  // つかめたら { index, id }、つかめなければ null
+  function willCatch(slots, armX, meter) {
+    const i = nearestSlot(slots, armX);
+    if (i < 0) return null;
+    const id = slots[i];
+    if (meter >= triesOf(id) - 1 || Math.abs(i - armX) <= catchWidth(meter)) return { index: i, id };
+    return null;
+  }
+
+  // 空いている場所を n 個ランダムに選んで景品を入れた、新しい配列を返す
+  // 台の中にまだ持っていない景品がなく、まだ持っていない景品があるなら、1つ目をそこから選ぶ
+  function fill(slots, n, unlocked, rng) {
+    const out = slots.slice();
+    const empty = [];
+    out.forEach((id, i) => { if (!id) empty.push(i); });
+    const all = prizeIds(), un = unowned(unlocked);
+    const needNew = un.length && !out.some(id => id && un.indexOf(id) >= 0);
+    for (let k = 0; k < n && empty.length; k++) {
+      const i = empty.splice(Math.floor(rng() * empty.length), 1)[0];
+      const pool = k === 0 && needNew ? un : all;
+      out[i] = pool[Math.floor(rng() * pool.length)];
+    }
+    return out;
+  }
+
+  // ならべるの見本。target: 3つになったあとの台 / todo: 新しく置く場所（左から）
+  function stockPlan(slots, unlocked, rng) {
+    const target = fill(slots, Math.max(0, C().craneStockMax - count(slots)), unlocked, rng);
+    const todo = [];
+    target.forEach((id, i) => { if (id && !slots[i]) todo.push(i); });
+    return { target, todo };
+  }
+
+  G.craneGame = { ARM_START, prizeIds, triesOf, unowned, count, emptySlots, catchWidth, nearestSlot, willCatch, fill, stockPlan };
+})(window.Game = window.Game || {});
+</script>
+<script>
+// ゲームセンター: クレーン台1つが1台。建てる（お金）・消えたら返金・あそぶ・ならべる・自動の補充
+// 台の記録 s.cranes[key] = { slots: [id|null ×5], meter, refillTimer, paid }
+// 遊んでいる・ならべている途中は s.cranePlay（セーブしない）
+(function (G) {
+  const W = () => G.world, C = () => G.config, CG = () => G.craneGame;
+
+  function newRecord(s, paid) {
+    return { slots: CG().fill(CG().emptySlots(), C().craneStockMax, s.unlocked, G.rng), meter: 0, refillTimer: 0, paid };
+  }
+
+  // マスの台と記録をそろえる。マスから消えた台は払ったお金を返す。戻り値は返したお金の合計
+  function reconcile(s) {
+    const keys = new Set(W().findAll(s.world, 'crane').map(p => W().key(p.x, p.y)));
+    for (const k of keys) if (!s.cranes[k]) s.cranes[k] = newRecord(s, 0);
+    let refund = 0;
+    for (const k of Object.keys(s.cranes)) {
+      if (keys.has(k)) continue;
+      refund += s.cranes[k].paid || 0;
+      delete s.cranes[k];
+      if (s.cranePlay && s.cranePlay.key === k) s.cranePlay = null;
+    }
+    s.player.money += refund;
+    return refund;
+  }
+
+  // 台を建てる。お金が足りなければ置かない。台の上に台を置いても何も変わらない
+  function build(s, x, y) {
+    const o = W().objAt(s.world, x, y);
+    if (o && o.type === 'crane') return { ok: true, same: true };
+    if (s.player.money < C().craneCost) return { ok: false, why: 'money' };
+    const res = W().place(s.world, x, y, 'crane', G.state.occupied(s));
+    if (!res.ok) return res;
+    s.player.money -= C().craneCost;
+    s.cranes[W().key(x, y)] = newRecord(s, C().craneCost);
+    return res;
+  }
+
+  // 自分のまわり（となり・ななめ）の台の key。なければ null
+  function near(s) {
+    const pt = G.player.tile(s.player);
+    return W().findAdjacent(s.world, pt.x, pt.y, 'crane');
+  }
+
+  const count = (rec) => CG().count(rec.slots);
+  // その台で遊んでいる住人
+  const playerOf = (s, k) => s.residents.find(r => r.state === 'playingCrane' && r.craneKey === k) || null;
+
+  // 自分が遊べないわけ: 'empty' | 'busy' | 'money' | null
+  function playBlock(s, k) {
+    const rec = s.cranes[k];
+    if (!rec || !count(rec)) return 'empty';
+    if (playerOf(s, k)) return 'busy';
+    if (s.player.money < C().cranePlayPrice) return 'money';
+    return null;
+  }
+  function stockBlock(s, k) {
+    const rec = s.cranes[k];
+    if (!rec || count(rec) >= C().craneStockMax) return 'full';
+    if (playerOf(s, k)) return 'busy';
+    return null;
+  }
+
+  // あそぶ: 5コイン払って始める
+  function startPlay(s, k) {
+    const why = playBlock(s, k);
+    if (why) return { ok: false, why };
+    s.player.money -= C().cranePlayPrice;
+    s.cranePlay = { key: k, mode: 'play', armX: CG().ARM_START, phase: 'ready', t: 0, holding: false, result: null };
+    G.residents.leaveCrane(s, k);
+    return { ok: true };
+  }
+
+  // 「→」を押している/離した
+  function hold(s, on) {
+    const cp = s.cranePlay;
+    if (!cp || cp.mode !== 'play') return;
+    cp.holding = on;
+    if (on && cp.phase === 'ready') cp.phase = 'moving';
+  }
+
+  // やめる: アームを動かす前ならお金をもどす
+  function cancel(s) {
+    const cp = s.cranePlay;
+    if (!cp || cp.mode !== 'play') return { ok: false };
+    if (cp.phase !== 'ready') return { ok: false, why: 'moving' };
+    s.player.money += C().cranePlayPrice;
+    s.cranePlay = null;
+    return { ok: true, refund: C().cranePlayPrice };
+  }
+
+  // アームが下りたところで、つかめたか決める
+  function resolve(s, cp) {
+    const rec = s.cranes[cp.key];
+    const got = CG().willCatch(rec.slots, cp.armX, rec.meter);
+    if (got) {
+      rec.slots[got.index] = null;
+      const isNew = !G.furniture.isUnlocked(s, got.id);
+      G.furniture.unlock(s, got.id);
+      rec.meter = 0;
+      for (const p of s.pets) if (p.follow) p.trick = { id: 'jump', until: s.time + C().trickTime };
+      cp.result = { caught: true, id: got.id, index: got.index, isNew };
+    } else {
+      rec.meter++;
+      cp.result = { caught: false };
+    }
+    G.state.emit(Object.assign({ type: 'crane' }, cp.result));
+  }
+
+  function updatePlay(s, cp, dt) {
+    const c = C();
+    if (cp.phase === 'moving') {
+      if (cp.holding) cp.armX = Math.min(c.craneSlots - 1, cp.armX + c.craneArmSpeed * dt);
+      else { cp.phase = 'dropping'; cp.t = 0; }
+    } else if (cp.phase === 'dropping') {
+      cp.t += dt;
+      if (cp.t >= c.craneDropTime) { resolve(s, cp); cp.phase = 'result'; cp.t = 0; }
+    } else if (cp.phase === 'result') {
+      cp.t += dt;
+      if (cp.t >= c.craneResultTime) s.cranePlay = null;
+    }
+  }
+
+  // ならべる: 見本を作って始める
+  function startStock(s, k) {
+    const why = stockBlock(s, k);
+    if (why) return { ok: false, why };
+    const plan = CG().stockPlan(s.cranes[k].slots, s.unlocked, G.rng);
+    s.cranePlay = { key: k, mode: 'stock', target: plan.target, todo: plan.todo, done: 0 };
+    G.residents.leaveCrane(s, k);
+    return { ok: true };
+  }
+
+  // 光っている場所に id を置く。違う絵なら何も変わらない
+  function stockPick(s, id) {
+    const cp = s.cranePlay;
+    if (!cp || cp.mode !== 'stock') return { ok: false };
+    if (cp.target[cp.todo[cp.done]] !== id) return { ok: false, why: 'wrong' };
+    cp.done++;
+    if (cp.done < cp.todo.length) return { ok: true, finished: false };
+    s.cranes[cp.key].slots = cp.target.slice();
+    const reward = C().craneStockPay * cp.todo.length;
+    s.player.money += reward;
+    s.cranePlay = null;
+    return { ok: true, finished: true, reward };
+  }
+
+  function cancelStock(s) {
+    if (s.cranePlay && s.cranePlay.mode === 'stock') s.cranePlay = null;
+  }
+
+  function update(s, dt) {
+    const cp = s.cranePlay, c = C();
+    if (cp && cp.mode === 'play') updatePlay(s, cp, dt);
+    // 自動の補充。自分が遊んでいる・ならべている台は止める
+    for (const k of Object.keys(s.cranes)) {
+      const rec = s.cranes[k];
+      if (count(rec) >= c.craneStockMax) { rec.refillTimer = 0; continue; }
+      if (s.cranePlay && s.cranePlay.key === k) continue;
+      rec.refillTimer += dt;
+      if (rec.refillTimer >= c.craneRefillInterval) {
+        rec.refillTimer = 0;
+        rec.slots = CG().fill(rec.slots, 1, s.unlocked, G.rng);
+      }
+    }
+  }
+
+  // 読み込んだとき: 台のないマスの記録は（返金せずに）消す。知らない景品は空にする
+  function restore(s) {
+    s.cranePlay = null;
+    if (!s.cranes || typeof s.cranes !== 'object') s.cranes = {};
+    const known = new Set(CG().prizeIds());
+    for (const k of Object.keys(s.cranes)) {
+      const { x, y } = W().parseKey(k), o = W().objAt(s.world, x, y), rec = s.cranes[k];
+      if (!o || o.type !== 'crane' || !rec || !Array.isArray(rec.slots)) { delete s.cranes[k]; continue; }
+      rec.slots = CG().emptySlots().map((_, i) => (known.has(rec.slots[i]) ? rec.slots[i] : null));
+      if (typeof rec.meter !== 'number') rec.meter = 0;
+      if (typeof rec.refillTimer !== 'number') rec.refillTimer = 0;
+      if (typeof rec.paid !== 'number') rec.paid = 0;
+    }
+  }
+
+  G.crane = { reconcile, build, near, count, playerOf, playBlock, stockBlock, startPlay, hold, cancel,
+    startStock, stockPick, cancelStock, update, restore };
+})(window.Game = window.Game || {});
+</script>
+<script>
 // 住人: ベッドを置くと引っ越してくる。家とハンバーガー屋を行き来する
 // 状態: arriving → home → toShop → queued → returning → home … / ベッドが消えたら leaving
 //       家にいるとき、ときどき home → toFurniture → using → returning（家の近くの家具を使う）
+//       ときどき home → toCrane → playingCrane → returning（クレーンで遊ぶ。景品を取ると gift にして、はなすとくれる）
 (function (G) {
   const W = () => G.world, P = () => G.pathfind;
   const NAMES = ['たろう', 'はなこ', 'けんた', 'さくら', 'ゆうと', 'みさき', 'そうた', 'あおい',
@@ -714,6 +1046,7 @@ button:disabled { opacity: .45; }
       hungerTimer: G.config.residentHungerInterval * (0.3 + 0.4 * G.rng()), pullBlockedUntil: 0,
       wish: null, wishTimer: G.wishes.firstTimer(G.rng), happiness: 0,
       useTimer: useInterval(), useKey: null, useFrom: null, useUntil: 0,
+      craneTimer: craneInterval(), craneKey: null, craneUntil: 0, gift: null,
     };
     const home = homeSpot(s, r);
     const out = P().find(s.world, home, P().edgeKeys(s.world));
@@ -725,11 +1058,12 @@ button:disabled { opacity: .45; }
   }
 
   const useInterval = () => { const c = G.config; return c.furnitureUseMin + (c.furnitureUseMax - c.furnitureUseMin) * G.rng(); };
+  const craneInterval = () => { const c = G.config; return c.craneVisitMin + (c.craneVisitMax - c.craneVisitMin) * G.rng(); };
 
-  // 家具の上に座っていたら、となりのマスへ戻る。使っている家具をはなす
+  // 家具の上に座っていたら、となりのマスへ戻る。使っている家具・クレーン台をはなす
   function standUp(r) {
     if (r.useFrom) { r.x = r.useFrom.x; r.y = r.useFrom.y; }
-    r.useFrom = null; r.useKey = null;
+    r.useFrom = null; r.useKey = null; r.craneKey = null;
   }
 
   // useKey の家具がまだあるか
@@ -768,6 +1102,44 @@ button:disabled { opacity: .45; }
       const { x, y } = W().parseKey(r.useKey);
       r.x = x; r.y = y;
     }
+  }
+
+  // 景品の入っているクレーン台（ほかの人が向かっていない・遊んでいない・自分が使っていない）へ向かう。距離の決まりはない
+  function goCrane(s, r) {
+    const taken = new Set(s.residents.filter(o => o !== r && o.craneKey).map(o => o.craneKey));
+    if (s.cranePlay) taken.add(s.cranePlay.key);
+    const cands = Object.keys(s.cranes).filter(k => !taken.has(k) && G.crane.count(s.cranes[k]));
+    while (cands.length) {
+      const k = cands.splice(Math.floor(G.rng() * cands.length), 1)[0];
+      const { x, y } = W().parseKey(k);
+      const goals = new Set(W().passableNeighbors(s.world, x, y).map(p => W().key(p.x, p.y)));
+      const path = goals.size && P().find(s.world, tileOf(r), goals);
+      if (!path) continue;
+      r.craneKey = k;
+      r.goal = path.length ? path[path.length - 1] : tileOf(r);
+      r.path = path;
+      r.state = 'toCrane';
+      return true;
+    }
+    return false;
+  }
+
+  // 自分がその台で遊び始めた・ならべ始めた: 向かっている住人は家に帰る
+  function leaveCrane(s, k) {
+    for (const r of s.residents) if (r.state === 'toCrane' && r.craneKey === k) goHome(s, r);
+  }
+
+  // 遊び終わり: ときどき景品を1つ取る
+  function finishCrane(s, r) {
+    const rec = s.cranes[r.craneKey];
+    if (rec && G.crane.count(rec) && G.rng() < G.config.craneResidentWin) {
+      const full = [];
+      rec.slots.forEach((id, i) => { if (id) full.push(i); });
+      const i = full[Math.floor(G.rng() * full.length)];
+      r.gift = rec.slots[i];
+      rec.slots[i] = null;
+    }
+    goHome(s, r);
   }
 
   // 目的地を決めて道を引く。行けなければ false
@@ -893,6 +1265,12 @@ button:disabled { opacity: .45; }
             r.useTimer = useInterval();
             goFurniture(s, r);
           }
+          if (r.state !== 'home') break;
+          r.craneTimer -= dt;
+          if (r.craneTimer <= 0) {
+            r.craneTimer = craneInterval();
+            if (!r.gift) goCrane(s, r); // 景品を渡すまでは遊びに行かない
+          }
           break;
         case 'toFurniture':
         case 'using': {
@@ -911,6 +1289,29 @@ button:disabled { opacity: .45; }
             if (st === 'arrived') startUsing(s, r);
             else if (st === 'blocked') goHome(s, r);
           } else if (s.time >= r.useUntil) goHome(s, r);
+          break;
+        }
+        case 'toCrane':
+        case 'playingCrane': {
+          const rec = s.cranes[r.craneKey];
+          if (!rec) { goHome(s, r); break; }
+          r.hungerTimer -= dt;
+          if (r.hungerTimer <= 0) {
+            // おなかがすいたら、遊ぶのをやめてお店へ。行けなければ続ける
+            const key = r.craneKey;
+            standUp(r);
+            if (goShop(s, r)) break;
+            r.hungerTimer = G.config.retryInterval;
+            r.craneKey = key;
+          }
+          if (r.state === 'toCrane') {
+            const st = walk(s, r, dt);
+            if (st === 'arrived') {
+              const busy = (s.cranePlay && s.cranePlay.key === r.craneKey) || G.crane.playerOf(s, r.craneKey);
+              if (!G.crane.count(rec) || busy) goHome(s, r);
+              else { r.state = 'playingCrane'; r.craneUntil = s.time + G.config.cranePlayTime; }
+            } else if (st === 'blocked') goHome(s, r);
+          } else if (s.time >= r.craneUntil) finishCrane(s, r);
           break;
         }
         case 'toShop': {
@@ -932,34 +1333,51 @@ button:disabled { opacity: .45; }
 
   const oneOf = (lines) => lines[Math.floor(G.rng() * lines.length)];
 
-  // はなす。ほしいものがかなっていたらお礼をくれる。戻り値 { text, reward }（reward はお礼のときだけ）
+  // おなかがすいているのに、お店がない・行けない・混んでいて家で待っている
+  const WAIT_MOODS = { noShop: true, cantReach: true, full: true };
+  const waitingHungry = (r) => !!WAIT_MOODS[r.mood] && ['home', 'toFurniture', 'using', 'toCrane', 'playingCrane'].indexOf(r.state) >= 0;
+  // 頭の上に 🍔 の吹き出しを出すか（ほしいものより先）
+  const wantsBurger = (r) => r.state === 'toShop' || r.state === 'queued' || waitingHungry(r);
+
+  // はなす。ほしいものがかなっていたらお礼をくれる。次に、クレーンで取った景品をくれる
+  // 戻り値 { text, reward?, gift?: { id, isNew } }
   function talk(s, r) {
     if (G.wishes.granted(s, r)) {
       const res = G.wishes.thank(s, r, G.rng);
       return { text: `${G.furniture.kindOf(res.kind).label} ありがとう！`, reward: res.reward };
     }
+    if (r.gift) {
+      const id = r.gift, isNew = !G.furniture.isUnlocked(s, id);
+      r.gift = null;
+      G.furniture.unlock(s, id);
+      return { text: `${G.furniture.kindOf(id).label} あげる！`, gift: { id, isNew } };
+    }
     if (r.state === 'toShop' || r.state === 'queued') return { text: oneOf(LINES.hungry) };
+    if (waitingHungry(r)) return { text: oneOf(LINES[r.mood]) };
     if (r.wish) return { text: `${G.furniture.kindOf(r.wish).label}が ほしいな` };
     if (r.mood === 'normal' && !G.wishes.pick(s, r, () => 0)) return { text: oneOf(LINES.allSet) };
     if (r.mood === 'normal' && r.happiness >= 3) return { text: oneOf(LINES.happy) };
     return { text: oneOf(LINES[r.mood] || LINES.normal) };
   }
 
-  // 読み込んだとき: 家具へ向かう途中・使っている途中は家にいることにする。足りない項目をうめる
+  // 読み込んだとき: 家具・クレーンへ向かう途中・使っている途中は家にいることにする。足りない項目をうめる
   function restore(s, r) {
     if (!r.wish || !G.furniture.kindOf(r.wish)) r.wish = null;
     if (typeof r.happiness !== 'number') r.happiness = 0;
     if (typeof r.wishTimer !== 'number') r.wishTimer = G.wishes.firstTimer(G.rng);
     if (typeof r.useTimer !== 'number') r.useTimer = useInterval();
-    if (r.state === 'toFurniture' || r.state === 'using') warpHome(s, r);
-    r.useKey = null; r.useFrom = null; r.useUntil = 0;
+    const g = r.gift && G.furniture.kindOf(r.gift);
+    if (!g || !g.prize) r.gift = null;
+    if (typeof r.craneTimer !== 'number') r.craneTimer = craneInterval();
+    if (['toFurniture', 'using', 'toCrane', 'playingCrane'].indexOf(r.state) >= 0) warpHome(s, r);
+    r.useKey = null; r.useFrom = null; r.useUntil = 0; r.craneKey = null; r.craneUntil = 0;
     return r;
   }
 
   // 自分のまわり1.5マス以内でいちばん近い住人
   function near(s) { return G.player.nearest(s.player, s.residents, 1.5); }
 
-  G.residents = { NAMES, LINES, create, update, served, talk, near, homeSpot, goShop, restore };
+  G.residents = { NAMES, LINES, create, update, served, talk, near, homeSpot, goShop, goCrane, leaveCrane, restore, wantsBurger };
 })(window.Game = window.Game || {});
 </script>
 <script>
@@ -1013,12 +1431,13 @@ button:disabled { opacity: .45; }
     return out;
   }
 
-  G.petCare = { hunger, hearts, learned, pat, feed, nameChoices };
+  G.petCare = { hunger, hearts, learned, addLove, pat, feed, nameChoices };
 })(window.Game = window.Game || {});
 </script>
 <script>
 // ペット: ついてくる（follow）か、自分のベッドのまわりでうろうろ（idle ↔ walking）
 // 閉じ込められたら自分のベッドのそばへぱっと戻る（エラーにしない）
+// おうちにいる子は、ときどきベッドの近くのおもちゃへ行って遊ぶ（toToy → toy）。遊ぶと なかよし +1
 (function (G) {
   const W = () => G.world, P = () => G.pathfind, C = () => G.config;
   const tileOf = (p) => ({ x: Math.round(p.x), y: Math.round(p.y) });
@@ -1033,9 +1452,12 @@ button:disabled { opacity: .45; }
     return p;
   }
 
-  // 歩いている途中・芸など、セーブしなくてよいところを初めにもどす
+  const toyInterval = () => C().toyMin + (C().toyMax - C().toyMin) * G.rng();
+
+  // 歩いている途中・芸・おもちゃで遊んでいる途中など、セーブしなくてよいところを初めにもどす
   function reset(p) {
-    Object.assign(p, { path: [], state: 'idle', idleUntil: 0, repathAt: 0, trick: null, moving: false });
+    Object.assign(p, { path: [], state: 'idle', idleUntil: 0, repathAt: 0, trick: null, moving: false, toyKey: null, toyUntil: 0 });
+    if (typeof p.toyTimer !== 'number') p.toyTimer = toyInterval();
     return p;
   }
 
@@ -1112,6 +1534,52 @@ button:disabled { opacity: .45; }
     p.idleUntil = s.time + 1;
   }
 
+  // k のマスにあるおもちゃの種類。なければ null
+  function toyAt(s, k) {
+    if (!k) return null;
+    const { x, y } = W().parseKey(k), o = W().objAt(s.world, x, y);
+    const kind = o && G.furniture.kindOf(o.type);
+    return kind && kind.petToy ? kind : null;
+  }
+
+  function stopToy(p) {
+    Object.assign(p, { state: 'idle', toyKey: null, toyUntil: 0, path: [], idleUntil: 0 });
+  }
+
+  // おもちゃで遊ぶ。遊びに向かっている・遊んでいるあいだは true（いつものうろうろはしない）
+  function toyStep(s, p, dt) {
+    const c = C();
+    if (p.state === 'toToy' || p.state === 'toy') {
+      if (!toyAt(s, p.toyKey)) { stopToy(p); return false; }
+      if (p.state === 'toToy') {
+        const st = walk(s, p, c.petSpeeds[kindOf(p.kind).move], dt);
+        if (st === 'arrived') { p.state = 'toy'; p.toyUntil = s.time + c.toyPlayTime; }
+        else if (st === 'blocked') stopToy(p);
+        return true;
+      }
+      if (s.time >= p.toyUntil) {
+        G.state.emit({ type: 'love', pet: p, res: G.petCare.addLove(p, c.toyLove) });
+        stopToy(p);
+      }
+      return true;
+    }
+    p.toyTimer -= dt;
+    if (p.toyTimer > 0) return false;
+    p.toyTimer = toyInterval();
+    const b = c.ownBed, R = c.petHomeRadius, toys = [];
+    for (let y = b.y - R; y <= b.y + R; y++) for (let x = b.x - R; x <= b.x + R; x++)
+      if (Math.hypot(x - b.x, y - b.y) <= R && toyAt(s, W().key(x, y))) toys.push({ x, y });
+    while (toys.length) {
+      const t = toys.splice(Math.floor(G.rng() * toys.length), 1)[0];
+      const goals = new Set(W().passableNeighbors(s.world, t.x, t.y).map(q => W().key(q.x, q.y)));
+      const path = goals.size && P().find(s.world, tileOf(p), goals);
+      if (!path) continue;
+      Object.assign(p, { state: 'toToy', toyKey: W().key(t.x, t.y), path });
+      return true;
+    }
+    return false;
+  }
+
   function update(s, dt) {
     let leader = s.player;
     for (const p of s.pets) {
@@ -1119,7 +1587,7 @@ button:disabled { opacity: .45; }
       if (p.trick && s.time >= p.trick.until) p.trick = null;
       getOut(s, p);
       if (p.follow) { followStep(s, p, leader, dt); leader = p; }
-      else homeStep(s, p, dt);
+      else if (!toyStep(s, p, dt)) homeStep(s, p, dt);
       p.moving = p.path.length > 0;
     }
   }
@@ -1139,13 +1607,13 @@ button:disabled { opacity: .45; }
 
   function setFollow(p, on) {
     p.follow = on;
-    p.path = []; p.idleUntil = 0; p.repathAt = 0;
+    stopToy(p); p.repathAt = 0;
   }
 
   // 自分のまわり1.5マス以内でいちばん近いペット
   function near(s) { return G.player.nearest(s.player, s.pets, 1.5); }
 
-  G.pets = { kindOf, create, restore, update, pat, feed, setFollow, near, homeSpot };
+  G.pets = { kindOf, create, restore, update, pat, feed, setFollow, near, homeSpot, toyAt };
 })(window.Game = window.Game || {});
 </script>
 <script>
@@ -1181,7 +1649,7 @@ button:disabled { opacity: .45; }
 // ゲーム全体の状態（セーブするのはこれ全部）と、1コマ進める処理
 (function (G) {
   G.rng = G.rng || Math.random;
-  const VERSION = 3;
+  const VERSION = 4;
 
   function create() {
     const c = G.config;
@@ -1195,6 +1663,7 @@ button:disabled { opacity: .45; }
       pets: [],
       fridge: 0, unlocked: [],
       shops: {},
+      cranes: {}, cranePlay: null,
       job: { active: false, counter: null, deliveries: 0, customerId: null, order: null, stack: [] },
     };
   }
@@ -1216,12 +1685,19 @@ button:disabled { opacity: .45; }
   function tick(s, dt) {
     s.time += dt;
     G.shop.reconcile(s);
+    G.crane.reconcile(s);
     G.residents.update(s, dt);
     G.pets.update(s, dt);
     G.shop.update(s, dt);
+    G.crane.update(s, dt);
   }
 
-  G.state = { VERSION, create, occupied, tick };
+  // 画面に知らせること（クレーンの結果・ペットのなかよしなど）。セーブしない。main が毎コマ取り出す
+  const events = [];
+  const emit = (e) => { events.push(e); };
+  const drain = () => events.splice(0, events.length);
+
+  G.state = { VERSION, create, occupied, tick, events, emit, drain };
 })(window.Game = window.Game || {});
 </script>
 <script>
@@ -1242,6 +1718,10 @@ button:disabled { opacity: .45; }
       s.unlocked = [];
       s.version = 3; // 住人に足す項目は deserialize の residents.restore でうめる
     }
+    if (s && s.version === 3 && s.player) {
+      s.cranes = {};
+      s.version = 4; // 住人の gift・ペットの toyTimer は restore でうめる
+    }
     return s;
   }
 
@@ -1255,10 +1735,12 @@ button:disabled { opacity: .45; }
       && s.player && typeof s.player.money === 'number' && Array.isArray(s.residents)
       && s.shops && typeof s.shops === 'object' && s.job && typeof s.time === 'number'
       && Array.isArray(s.pets) && typeof s.player.food === 'number'
-      && typeof s.player.hand === 'number' && typeof s.fridge === 'number' && Array.isArray(s.unlocked);
+      && typeof s.player.hand === 'number' && typeof s.fridge === 'number' && Array.isArray(s.unlocked)
+      && s.cranes && typeof s.cranes === 'object';
     if (!ok) throw new Error('bad save');
     s.pets = G.pets.restore(s.pets); // 知らない種類は取り除き、歩いている途中などは初めから
     G.furniture.restoreWorld(s); // 知らない家具は取り除く
+    G.crane.restore(s); // 台のない記録・知らない景品を取り除く。遊んでいる途中は終わり
     for (const r of s.residents) G.residents.restore(s, r);
     s.job.active = false; // 開き直したらアルバイトは終わっている
     s.job.customerId = null; s.job.order = null; s.job.stack = [];
@@ -1390,6 +1872,18 @@ button:disabled { opacity: .45; }
     ctx.stroke();
   }
 
+  // クレーン台: ガラスの中に景品が小さく並び、下に 🕹️
+  function drawCrane(ctx, sx, sy, T, rec) {
+    const sp = G.sprites.crane;
+    tileRect(ctx, sx, sy, T, sp);
+    ctx.fillStyle = sp.glass;
+    ctx.fillRect(sx - T * 0.4, sy - T * 0.42, T * 0.8, T * 0.42);
+    if (rec) rec.slots.forEach((id, i) => {
+      if (id) emoji(ctx, G.sprites.furniture[id].emoji, sx - T * 0.32 + i * T * 0.16, sy - T * 0.16, T * 0.17);
+    });
+    emoji(ctx, sp.emoji, sx, sy + T * 0.22, T * 0.36);
+  }
+
   // ペット: 動き方ごとのゆれ、芸、おなかが空の吹き出し、となりにいるときはハート
   function drawPet(app, pet, sx, sy, now, near) {
     const { ctx, T } = app, S = G.sprites, sp = S.pets[pet.kind], c = G.config;
@@ -1417,28 +1911,37 @@ button:disabled { opacity: .45; }
       top -= T * 0.22;
       if (h) { emoji(ctx, S.heart.emoji.repeat(h), sx, top, T * 0.2); top -= T * 0.2; }
     }
+    if (pet.state === 'toy' && pet.toyKey) {
+      const { x, y } = G.world.parseKey(pet.toyKey), o = G.world.objAt(app.s.world, x, y);
+      if (o && S.furniture[o.type]) emoji(ctx, S.furniture[o.type].emoji, sx - size * 0.5, py - size * 0.6 - Math.abs(Math.sin(now * 6)) * T * 0.1, T * 0.25);
+    }
     if (pet.hunger <= 0) {
       emoji(ctx, '💭', sx + size * 0.5, py - size * 0.6, T * 0.4);
       emoji(ctx, S.petHungry.emoji, sx + size * 0.5, py - size * 0.62, T * 0.2);
     }
   }
 
-  // 住人の吹き出し: おなか（🍖ではなく🍔）＞ ほしいもの（💭、かなっていれば ✨）。使っている家具の絵。となりならハート
+  // 住人の吹き出し: おなか（お店へ向かう・お店に行けず待っている）＞ かなった ✨ ＞ 景品 🎁 ＞ ほしいもの 💭
+  // 使っている家具の絵・遊んでいるクレーンの絵。となりならハート
   function drawResidentExtras(app, r, sx, sy, near) {
     const { ctx, T } = app, S = G.sprites;
-    if (r.state === 'toShop' || r.state === 'queued') {
-      emoji(ctx, '💭', sx + T * 0.35, sy - T * 0.5, T * 0.45);
-      emoji(ctx, S.burger.emoji, sx + T * 0.35, sy - T * 0.52, T * 0.22);
-    } else if (r.wish) {
-      const ok = G.wishes.granted(app.s, r), sp = S.furniture[r.wish];
-      emoji(ctx, ok ? S.sparkle.emoji : '💭', sx + T * 0.35, sy - T * 0.5, T * 0.45);
+    const wishBubble = (mark) => {
+      const sp = S.furniture[r.wish];
+      emoji(ctx, mark, sx + T * 0.35, sy - T * 0.5, T * 0.45);
       if (sp.emoji) emoji(ctx, sp.emoji, sx + T * 0.35, sy - T * 0.52, T * 0.22);
       else { ctx.fillStyle = sp.color; ctx.fillRect(sx + T * 0.27, sy - T * 0.6, T * 0.16, T * 0.16); }
-    }
+    };
+    if (G.residents.wantsBurger(r)) {
+      emoji(ctx, '💭', sx + T * 0.35, sy - T * 0.5, T * 0.45);
+      emoji(ctx, S.burger.emoji, sx + T * 0.35, sy - T * 0.52, T * 0.22);
+    } else if (r.wish && G.wishes.granted(app.s, r)) wishBubble(S.sparkle.emoji);
+    else if (r.gift) emoji(ctx, S.gift.emoji, sx + T * 0.35, sy - T * 0.5, T * 0.4);
+    else if (r.wish) wishBubble('💭');
     if (r.state === 'using' && r.useKey) {
       const { x, y } = G.world.parseKey(r.useKey), o = G.world.objAt(app.s.world, x, y);
       if (o && S.furniture[o.type]) emoji(ctx, S.furniture[o.type].react, sx - T * 0.35, sy - T * 0.45, T * 0.3);
     }
+    if (r.state === 'playingCrane') emoji(ctx, S.crane.emoji, sx - T * 0.35, sy - T * 0.45, T * 0.3);
     if (near && r.happiness) emoji(ctx, S.heart.emoji.repeat(r.happiness), sx, sy - T * 0.62, T * 0.18);
   }
 
@@ -1470,7 +1973,8 @@ button:disabled { opacity: .45; }
         tileRect(ctx, sx, sy, T, S.furnitureCounter);
         emoji(ctx, S.furnitureIcon.emoji, sx, sy + T * 0.1, T * 0.45);
         emoji(ctx, S.furnitureClerk.emoji, sx, sy - T * 0.35, T * 0.6);
-      } else if (S.furniture[o.type]) {
+      } else if (o.type === 'crane') drawCrane(ctx, sx, sy, T, s.cranes[G.world.key(x, y)]);
+      else if (S.furniture[o.type]) {
         const sp = S.furniture[o.type];
         if (sp.color) tileRect(ctx, sx, sy, T, sp);
         if (o.type === 'tv' && app.tvGlow && app.tvGlow.key === G.world.key(x, y) && s.time < app.tvGlow.until) {
@@ -1525,6 +2029,7 @@ button:disabled { opacity: .45; }
 </script>
 <script>
 // 画面の上に重ねる表示（DOM）: 上の表示・ボタン・つくるパレット・アルバイト画面・メニュー・ペットやさん・かぐやさん
+// ・クレーンゲームの画面・ならべるの画面
 (function (G) {
   const S = () => G.sprites;
   let root, els = {}, last = {}, app, tab = 'parts'; // tab: パレットの列 'parts' | 'furniture'
@@ -1590,8 +2095,10 @@ button:disabled { opacity: .45; }
     els.furnAct = btn('', () => app.furnitureAct(), { 'data-t': 'furnact' });
     els.stash = btn('🧊 しまう', () => app.stash(), { 'data-t': 'stash' });
     els.takeOut = btn('', () => app.takeOut(), { 'data-t': 'takeout' });
+    els.cranePlay = btn('', () => app.cranePlay(), { 'data-t': 'craneplay' });
+    els.craneStock = btn(`${S().furniture.bigBear.emoji} ならべる`, () => app.craneStock(), { 'data-t': 'cranestock' });
     els.actions.append(els.talk, els.buy, els.toGo, els.work, els.eat, els.petShop, els.pat, els.feed, els.follow,
-      els.furnShop, els.furnAct, els.stash, els.takeOut);
+      els.furnShop, els.furnAct, els.stash, els.takeOut, els.cranePlay, els.craneStock);
     root.append(els.actions);
 
     els.palette = h('div', { class: 'palette' });
@@ -1599,6 +2106,8 @@ button:disabled { opacity: .45; }
     buildPalette();
 
     buildJob();
+    buildCrane();
+    buildStock();
     els.toast = h('div', { class: 'toast', style: 'display:none' });
     root.append(els.toast);
     root.append(h('div', { class: 'rotate' }, 'スマホを よこに してね 📱↻'));
@@ -1611,6 +2120,11 @@ button:disabled { opacity: .45; }
     els.palette.replaceChildren();
     if (tab === 'parts') {
       for (const t of TOOLS) els.palette.append(toolBtn(t.id, t.icon(), t.label));
+      // クレーン台は建てるのにお金がかかる（足りないときは薄く）
+      els.craneTool = btn(`${S().crane.emoji}<small>クレーン</small><small>${S().coin.emoji}${G.config.craneCost}</small>`,
+        () => { app.tool = 'crane'; }, { 'data-tool': 'crane' });
+      els.palette.append(els.craneTool);
+      last.craneAfford = undefined;
       els.palette.append(btn(`${S().furniture.chair.emoji}<small>かぐ</small>`, () => openFurnitureTab(), { 'data-t': 'furntab' }));
     } else {
       els.palette.append(btn('↩️<small>もどる</small>', () => { tab = 'parts'; buildPalette(); }, { 'data-t': 'partstab' }));
@@ -1646,6 +2160,95 @@ button:disabled { opacity: .45; }
     root.append(els.job);
   }
 
+  // クレーンの画面: 6列（左はしが取り出し口、そのあと場所0〜4）。アームは armX から位置を決める
+  function buildCrane() {
+    els.cMeter = h('div', { class: 'meter', 'data-t': 'cranemeter' });
+    els.cSlots = [];
+    const slots = h('div', { class: 'cslots' }, h('div', { class: 'chute' }, '⬇️'));
+    for (let i = 0; i < G.config.craneSlots; i++) { const c = h('div', { class: 'cslot', 'data-slot': i }); els.cSlots.push(c); slots.append(c); }
+    els.cRope = h('div', { class: 'rope' });
+    els.cClaw = h('div', { class: 'claw' });
+    els.cArm = h('div', { class: 'arm' }, els.cRope, els.cClaw);
+    els.cMsg = h('div', { class: 'cmsg' });
+    const field = h('div', { class: 'cfield' }, els.cArm, slots, els.cMsg);
+    els.cGo = h('button', { class: 'go', 'data-t': 'cranego' });
+    els.cGo.innerHTML = '➡️';
+    const up = () => app.craneHold(false);
+    els.cGo.addEventListener('pointerdown', (e) => {
+      e.preventDefault(); e.stopPropagation();
+      if (els.cGo.disabled) return;
+      try { els.cGo.setPointerCapture(e.pointerId); } catch (_) { /* 取れなくても動く */ }
+      app.craneHold(true);
+    });
+    for (const ev of ['pointerup', 'pointercancel', 'lostpointercapture']) els.cGo.addEventListener(ev, up);
+    els.cQuit = btn('やめる', () => app.craneQuit(), { class: 'end', 'data-t': 'cranequit' });
+    els.crane = h('div', { class: 'crane', style: 'display:none' },
+      h('div', { class: 'ctop' }, h('div', { class: 'title' }, `${S().crane.emoji} クレーンゲーム`), els.cMeter),
+      field,
+      h('div', { class: 'controls' }, els.cGo, els.cQuit));
+    root.append(els.crane);
+  }
+
+  function updateCrane(s) {
+    const cp = s.cranePlay, rec = s.cranes[cp.key], c = G.config;
+    if (!rec) return;
+    const caught = cp.phase === 'result' && cp.result && cp.result.caught;
+    rec.slots.forEach((id, i) => set('cslot' + i, id || '', v => { els.cSlots[i].textContent = v ? S().furniture[v].emoji : ''; }));
+    // アーム: 結果で取れたときは取り出し口へ戻る
+    let x = cp.armX, down = 0;
+    if (cp.phase === 'dropping') { const k = cp.t / c.craneDropTime; down = k < 0.5 ? k * 2 : (1 - k) * 2; }
+    if (caught) x = cp.armX + (G.craneGame.ARM_START - cp.armX) * Math.min(1, cp.t / (c.craneResultTime * 0.6));
+    const cols = c.craneSlots + 1;
+    els.cArm.style.left = `${(x + 1.5) / cols * 100}%`;
+    els.cRope.style.height = `${8 + down * 55}%`;
+    set('claw', caught ? cp.result.id : '', v => { els.cClaw.innerHTML = '🪝' + (v ? `<span>${S().furniture[v].emoji}</span>` : ''); });
+    // あとちょっとメーター: アームにいちばん近い景品の「かならず取れる回数」まで
+    const ni = G.craneGame.nearestSlot(rec.slots, cp.armX);
+    const need = ni >= 0 ? G.craneGame.triesOf(rec.slots[ni]) - 1 : 0;
+    set('cmeter', `${rec.meter},${need}`, () => {
+      const n = Math.min(rec.meter, need);
+      els.cMeter.innerHTML = need ? `あとちょっと ${'🔴'.repeat(n)}${'⚪'.repeat(need - n)}` : '';
+      if (need && rec.meter >= need) els.cMeter.innerHTML = 'つぎは かならず とれる！';
+    });
+    let msg = '';
+    if (cp.phase === 'ready') msg = '➡️ を おしてる あいだ うごくよ';
+    else if (cp.phase === 'result') msg = cp.result.caught ? 'とれた！' : 'あとちょっと！';
+    set('cmsg', msg, v => { els.cMsg.textContent = v; });
+    set('cgo', cp.phase === 'ready' || cp.phase === 'moving', v => { els.cGo.disabled = !v; });
+    set('cquit', cp.phase === 'ready', v => { els.cQuit.disabled = !v; });
+  }
+
+  // ならべるの画面: 見本（うすい絵）の上に、光っている場所から左から順に置く
+  function buildStock() {
+    els.sCells = [];
+    const row = h('div', { class: 'srow' });
+    for (let i = 0; i < G.config.craneSlots; i++) { const c = h('div', { class: 'scell', 'data-cell': i }); els.sCells.push(c); row.append(c); }
+    const pick = h('div', { class: 'spick' });
+    for (const id of G.craneGame.prizeIds()) {
+      const b = btn(S().furniture[id].emoji, () => {
+        if (app.stockPick(id).ok) return;
+        b.classList.remove('shake'); void b.offsetWidth; b.classList.add('shake');
+      }, { 'data-prize': id });
+      pick.append(b);
+    }
+    els.stock = h('div', { class: 'stock', style: 'display:none' },
+      h('div', { class: 'title' }, `${S().furniture.bigBear.emoji} みほんと おなじに ならべてね`), row, pick,
+      h('div', { class: 'controls' }, btn('やめる', () => app.stockQuit(), { class: 'end', 'data-t': 'stockquit' })));
+    root.append(els.stock);
+  }
+
+  function updateStock(s) {
+    const cp = s.cranePlay;
+    set('stock', `${cp.key},${cp.done},${cp.target.join()}`, () => {
+      const placed = new Set(cp.todo.slice(0, cp.done)), cur = cp.todo[cp.done];
+      cp.target.forEach((id, i) => {
+        const cell = els.sCells[i], todo = cp.todo.indexOf(i) >= 0;
+        cell.textContent = id ? S().furniture[id].emoji : '';
+        cell.className = 'scell' + (todo && !placed.has(i) ? ' mihon' : '') + (i === cur ? ' now' : '');
+      });
+    });
+  }
+
   function stackHTML(list) {
     const J = S().ingredients;
     return list.map(id => `<span style="background:${J[id].color}">${J[id].emoji}</span>`).join('');
@@ -1675,11 +2278,14 @@ button:disabled { opacity: .45; }
     });
     set('mode', mode, m => {
       els.build.innerHTML = m === 'build' ? '✅ もどる' : '🔨 つくる';
-      show(els.build, m !== 'job');
+      show(els.build, m === 'walk' || m === 'build');
       show(els.palette, m === 'build');
       show(els.job, m === 'job');
+      show(els.crane, m === 'crane');
+      show(els.stock, m === 'stock');
       show(els.actions, m === 'walk');
     });
+    if (els.craneTool) set('craneAfford', p.money >= G.config.craneCost, v => els.craneTool.classList.toggle('dim', !v));
     set('tool', app.tool, t => {
       for (const b of els.palette.children) b.classList.toggle('on', b.dataset.tool === t);
     });
@@ -1704,7 +2310,17 @@ button:disabled { opacity: .45; }
       set('petShop', !!G.petShop.nearPetShop(s), v => show(els.petShop, v));
       set('pet', !!pet, v => { show(els.pat, v); show(els.feed, v); show(els.follow, v); });
       set('follow', pet ? pet.follow : null, v => { els.follow.innerHTML = v ? '🏠 おうちにいて' : '🐾 ついてきて'; });
+      const ck = G.crane.near(s);
+      set('craneNear', !!ck, v => show(els.cranePlay, v));
+      set('cranePrice', G.config.cranePlayPrice, v => { els.cranePlay.innerHTML = `${S().crane.emoji} あそぶ（${v}）`; });
+      set('cranePlayDim', ck ? !!G.crane.playBlock(s, ck) : false, v => els.cranePlay.classList.toggle('dim', v));
+      const sb = ck ? G.crane.stockBlock(s, ck) : 'full';
+      set('craneStock', sb !== 'full', v => show(els.craneStock, v));
+      set('craneStockDim', sb === 'busy', v => els.craneStock.classList.toggle('dim', v));
     }
+
+    if (mode === 'crane' && s.cranePlay && s.cranePlay.mode === 'play') updateCrane(s);
+    if (mode === 'stock' && s.cranePlay && s.cranePlay.mode === 'stock') updateStock(s);
 
     if (mode === 'job') {
       const j = s.job, cust = s.residents.find(r => r.id === j.customerId);
@@ -1786,7 +2402,7 @@ button:disabled { opacity: .45; }
     const money = h('div', { class: 'title' });
     const grid = h('div', { class: 'shelf' });
     const items = [];
-    for (const k of G.config.furnitureKinds) {
+    for (const k of G.config.furnitureKinds.filter(k => !k.prize)) { // 景品はクレーンでしか取れない
       const b = btn('', () => { app.buyFurniture(k.id); refresh(); }, { 'data-furn': k.id });
       items.push([b, k]);
       grid.append(b);
@@ -1829,7 +2445,10 @@ button:disabled { opacity: .45; }
     owned: 'もう もってるよ',
     hand: 'もう もてないよ',
     fridgeFull: 'れいぞうこが いっぱいだよ',
+    empty: 'からっぽだよ。ならべて あげよう',
   };
+  const coin = () => G.sprites.coin.emoji;
+  const prizeLabel = (id) => G.furniture.kindOf(id).label;
 
   const loaded = G.save.load(localStorage);
   const app = {
@@ -1857,16 +2476,26 @@ button:disabled { opacity: .45; }
     if (app.mode !== 'build') return;
     const s = app.s;
     const res = app.tool === 'erase' ? G.world.erase(s.world, t.x, t.y)
-      : G.world.place(s.world, t.x, t.y, app.tool, G.state.occupied(s));
+      : app.tool === 'crane' ? G.crane.build(s, t.x, t.y)
+        : G.world.place(s.world, t.x, t.y, app.tool, G.state.occupied(s));
     if (!res.ok && MSG[res.why]) G.ui.toast(MSG[res.why]);
+    if (app.tool === 'crane' && res.ok && !res.same) G.ui.pop(`-${G.config.craneCost} ${coin()}`);
+    // 台を消した・上書きしたら、建てたお金がもどる
+    const refund = G.crane.reconcile(s);
+    if (refund) G.ui.pop(`+${refund} ${coin()}`);
   };
 
   app.talk = () => {
     const r = G.residents.near(app.s);
     if (!r) return;
     const res = G.residents.talk(app.s, r);
-    G.ui.toast(`${r.look} ${r.name}「${res.text}」`, 3000);
-    if (res.reward) G.ui.pop(`+${res.reward} ${G.sprites.coin.emoji}`);
+    let text = `${r.look} ${r.name}「${res.text}」`;
+    if (res.gift) {
+      text += res.gift.isNew ? ` ${prizeLabel(res.gift.id)}が おけるように なったよ！` : ' また もらった！';
+      G.ui.pop(G.sprites.furniture[res.gift.id].emoji);
+    }
+    G.ui.toast(text, 3000);
+    if (res.reward) G.ui.pop(`+${res.reward} ${coin()}`);
   };
 
   app.buy = () => {
@@ -1958,6 +2587,49 @@ button:disabled { opacity: .45; }
     else if (MSG[res.why]) G.ui.toast(MSG[res.why]);
   };
 
+  // ゲームセンター
+  function craneBlocked(k, why) {
+    if (why === 'busy') {
+      const r = G.crane.playerOf(app.s, k);
+      G.ui.toast(`${r ? r.name : 'だれか'}が あそんでるよ。まってね`);
+    } else if (MSG[why]) G.ui.toast(MSG[why]);
+  }
+  app.cranePlay = () => {
+    const k = G.crane.near(app.s);
+    if (!k) return;
+    const res = G.crane.startPlay(app.s, k);
+    if (!res.ok) { craneBlocked(k, res.why); return; }
+    setMode('crane');
+  };
+  app.craneHold = (on) => G.crane.hold(app.s, on);
+  app.craneQuit = () => {
+    const res = G.crane.cancel(app.s);
+    if (res.ok) { G.ui.pop(`+${res.refund} ${coin()}`); setMode('walk'); }
+  };
+  app.craneStock = () => {
+    const k = G.crane.near(app.s);
+    if (!k) return;
+    const res = G.crane.startStock(app.s, k);
+    if (!res.ok) { craneBlocked(k, res.why); return; }
+    setMode('stock');
+  };
+  app.stockPick = (id) => {
+    const res = G.crane.stockPick(app.s, id);
+    if (res.finished) { G.ui.pop(`+${res.reward} ${coin()}`); G.ui.toast('ありがとう！ きれいに ならんだね'); setMode('walk'); }
+    return res;
+  };
+  app.stockQuit = () => { G.crane.cancelStock(app.s); setMode('walk'); };
+
+  // 動きの中で起きたことを知らせる（クレーンの結果・ペットのなかよし）
+  function notify(e) {
+    if (e.type === 'love') celebrate(e.pet, e.res);
+    if (e.type !== 'crane') return;
+    if (!e.caught) { G.ui.toast('あとちょっと！'); return; }
+    const label = prizeLabel(e.id);
+    G.ui.pop(G.sprites.furniture[e.id].emoji);
+    G.ui.toast(e.isNew ? `${label}が とれた！ ${label}が おけるように なったよ！` : `${label}が とれた！ また とれた！`, 3000);
+  }
+
   app.exportSave = () => {
     const blob = new Blob([G.save.serialize(app.s)], { type: 'application/json' });
     const a = document.createElement('a');
@@ -1984,6 +2656,8 @@ button:disabled { opacity: .45; }
     }
     G.state.tick(s, dt);
     if (app.mode === 'job' && !s.job.active) setMode('walk'); // カウンターが消えたなど
+    if ((app.mode === 'crane' || app.mode === 'stock') && !s.cranePlay) setMode('walk'); // 遊び終わった・台が消えた
+    for (const e of G.state.drain()) notify(e);
     if (app.mode !== 'build') {
       app.cam.x += (s.player.x - app.cam.x) * Math.min(1, dt * 8);
       app.cam.y += (s.player.y - app.cam.y) * Math.min(1, dt * 8);
