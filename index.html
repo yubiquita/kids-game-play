@@ -14,6 +14,7 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #5d8a2f;
 canvas { display: block; position: fixed; inset: 0; }
 #ui { position: fixed; inset: 0; pointer-events: none; }
 #ui > * { pointer-events: auto; }
+#ui > .pop, #ui > .toast { pointer-events: none; } /* 浮かぶ表示はタップを取らない */
 button { font: inherit; border: none; border-radius: 14px; background: #fff; color: #333;
   box-shadow: 0 3px 0 #0003; padding: 8px 14px; font-size: 18px; cursor: pointer; touch-action: manipulation; }
 button:active { transform: translateY(2px); box-shadow: 0 1px 0 #0003; }
@@ -125,6 +126,70 @@ button:disabled { opacity: .45; }
 @media (max-height: 340px) {
   .crane, .stock { inset: 4px; padding: 8px; gap: 4px; }
   .spick button { font-size: 24px; padding: 4px 8px; }
+}
+
+/* ガシャポン */
+.capsule { display: inline-block; width: 26px; height: 26px; border-radius: 50%; vertical-align: middle;
+  background: linear-gradient(#ef5350 50%, #fafafa 50%); box-shadow: inset 0 0 0 2px #9e9e9e; }
+.capsule.big { width: clamp(48px, 18vh, 80px); height: clamp(48px, 18vh, 80px); }
+.palette .swatch { display: flex; align-items: center; justify-content: center; font-size: 18px; }
+.gacha { position: absolute; inset: 8px; background: #e3f2fd; border-radius: 22px; display: flex;
+  flex-direction: column; gap: 8px; padding: 12px; box-sizing: border-box; }
+.gacha .ctop { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.gacha .title { font-size: 18px; }
+.gacha .meter { font-size: 18px; background: #fff; border-radius: 12px; padding: 2px 10px; }
+.gfield { position: relative; flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; gap: 6%; }
+.gmachine { position: relative; height: 92%; aspect-ratio: 3 / 4; border: 4px solid #0277bd; border-radius: 18px;
+  display: flex; flex-direction: column; align-items: center; justify-content: space-evenly; box-sizing: border-box; }
+.gglass { position: relative; width: 74%; aspect-ratio: 1; border-radius: 50%; background: #fffc; overflow: hidden; }
+.gglass i { position: absolute; width: 26%; aspect-ratio: 1; border-radius: 50%; box-shadow: inset 0 0 0 2px #0002; }
+.gglass i:nth-child(1) { left: 14%; top: 52%; background: linear-gradient(#ef5350 50%, #fafafa 50%); }
+.gglass i:nth-child(2) { left: 44%; top: 60%; background: linear-gradient(#42a5f5 50%, #fafafa 50%); }
+.gglass i:nth-child(3) { left: 62%; top: 34%; background: linear-gradient(#ffca28 50%, #fafafa 50%); }
+.gglass i:nth-child(4) { left: 30%; top: 26%; background: linear-gradient(#66bb6a 50%, #fafafa 50%); }
+.gglass i:nth-child(5) { left: 58%; top: 8%; background: linear-gradient(#ab47bc 50%, #fafafa 50%); }
+.gmachine.turning .gglass i { animation: shake .3s infinite; }
+.ghandle { font-size: clamp(24px, 10vh, 44px); line-height: 1; }
+.gmachine.turning .ghandle { animation: spin .8s linear; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.gout { width: 36%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; }
+.gmsg { font-size: 20px; color: #0277bd; font-weight: bold; white-space: nowrap; }
+.gmsg:empty { display: none; }
+.gcap { background: none; box-shadow: none; padding: 0; animation: drop .4s ease-out; }
+@keyframes drop { from { transform: translateY(-40px); opacity: 0; } to { transform: none; opacity: 1; } }
+.gresult { display: flex; flex-direction: column; align-items: center; gap: 2px; background: #fff; border-radius: 18px;
+  padding: 8px 14px; animation: pop-in .35s ease-out; }
+@keyframes pop-in { from { transform: scale(.4); } to { transform: none; } }
+.gresult .fig { font-size: clamp(48px, 26vh, 110px); line-height: 1.1; }
+.gresult b { font-size: 22px; }
+.gresult em { font-style: normal; font-weight: bold; color: #fff; background: #e53935; border-radius: 10px; padding: 0 10px; }
+.gresult small { font-size: 15px; color: #666; }
+.gacha .controls { display: flex; gap: 12px; justify-content: center; }
+.gacha .go { font-size: 26px; padding: 8px 28px; background: #ffd54f; }
+.gacha .end { background: #eee; font-size: 22px; padding: 10px 16px; }
+.fig { display: inline-block; position: relative; padding-bottom: 4px;
+  background: radial-gradient(ellipse 45% 12% at 50% 92%, #9e9e9e 98%, transparent 100%); }
+.fig.gold { background: radial-gradient(ellipse 45% 12% at 50% 92%, #ffc107 98%, transparent 100%); }
+.figlist { display: flex; flex-direction: column; gap: 6px; max-height: 42vh; overflow-y: auto; touch-action: pan-y; padding: 2px 2px 6px; }
+.figrow { display: flex; gap: 6px; }
+.figrow.wrap { flex-wrap: wrap; max-width: 80vw; justify-content: center; }
+.figrow button { font-size: 28px; padding: 4px 8px; display: flex; flex-direction: column; align-items: center; }
+.figrow button small { font-size: 13px; }
+.modal .scell { padding: 0; }
+.note { color: #666; text-align: center; }
+.zukan { display: flex; flex-direction: column; gap: 2px; max-height: 70vh; overflow-y: auto; touch-action: pan-y; }
+.modal .box:has(.zukan) { padding: 10px 14px; gap: 6px; }
+.zhead { font-size: 15px; display: flex; gap: 8px; align-items: center; }
+.zcell { position: relative; display: flex; flex-direction: column; align-items: center; min-width: 58px; background: #f5f5f5;
+  border-radius: 12px; padding: 1px 4px; line-height: 1.15; }
+.zcell .fig { font-size: 24px; }
+.zcell small { font-size: 11px; white-space: nowrap; }
+.zcell .badge { position: absolute; top: -2px; right: -2px; font-size: 11px; background: #ff9800; color: #fff; border-radius: 8px; padding: 0 4px; }
+.zcell.unknown { color: #aaa; }
+@media (max-height: 340px) {
+  .gacha { inset: 4px; padding: 8px; gap: 4px; }
+  .zcell { min-width: 50px; }
+  .zcell .fig { font-size: 22px; }
 }
 </style>
 </head>
@@ -243,6 +308,51 @@ button:disabled { opacity: .45; }
     toyMax: 40,
     toyPlayTime: 5,
     toyLove: 1,
+
+    // ガシャポン（第5弾の設計書3節）。台ごとに1シリーズ。trophy: そろえるともらえる
+    gachaSeries: [
+      { id: 'pet',  machine: 'gachaPet',  label: 'ペットガシャ',     trophy: 'trophyPet' },
+      { id: 'town', machine: 'gachaTown', label: 'まちのひとガシャ', trophy: 'trophyTown' },
+      { id: 'food', machine: 'gachaFood', label: 'たべものガシャ',   trophy: 'trophyFood' },
+    ],
+    // pet: 同じ種類のペット（見に来る）/ trophy: ガシャからは出ない
+    figureKinds: [
+      { id: 'figDog',            series: 'pet',  label: 'いぬ',       pet: 'dog' },
+      { id: 'figCat',            series: 'pet',  label: 'ねこ',       pet: 'cat' },
+      { id: 'figRabbit',         series: 'pet',  label: 'うさぎ',     pet: 'rabbit' },
+      { id: 'figHamster',        series: 'pet',  label: 'ハムスター', pet: 'hamster' },
+      { id: 'figHedgehog',       series: 'pet',  label: 'ハリネズミ', pet: 'hedgehog' },
+      { id: 'figMouse',          series: 'pet',  label: 'ネズミ',     pet: 'mouse' },
+      { id: 'figParakeet',       series: 'pet',  label: 'インコ',     pet: 'parakeet' },
+      { id: 'figTurtle',         series: 'pet',  label: 'かめ',       pet: 'turtle' },
+      { id: 'figBurgerClerk',    series: 'town', label: 'ハンバーガーやさん' },
+      { id: 'figPetClerk',       series: 'town', label: 'ペットやさん' },
+      { id: 'figFurnitureClerk', series: 'town', label: 'かぐやさん' },
+      { id: 'figGrandma',        series: 'town', label: 'おばあちゃん' },
+      { id: 'figGrandpa',        series: 'town', label: 'おじいちゃん' },
+      { id: 'figKid',            series: 'town', label: 'こども' },
+      { id: 'figBurger',         series: 'food', label: 'ハンバーガー' },
+      { id: 'figBun',            series: 'food', label: 'パン' },
+      { id: 'figPatty',          series: 'food', label: 'おにく' },
+      { id: 'figCheese',         series: 'food', label: 'チーズ' },
+      { id: 'figLettuce',        series: 'food', label: 'レタス' },
+      { id: 'figBone',           series: 'food', label: 'ほね' },
+      { id: 'trophyPet',         series: 'pet',  label: 'ペットの トロフィー',     trophy: true },
+      { id: 'trophyTown',        series: 'town', label: 'まちのひとの トロフィー', trophy: true },
+      { id: 'trophyFood',        series: 'food', label: 'たべものの トロフィー',   trophy: true },
+    ],
+    gachaCost: 20,                 // 台を建てる（消すと全額もどる）
+    gachaPlayPrice: 3,
+    gachaPityAt: 2,                // 続けてダブった回数がこれ以上なら、必ず NEW
+    gachaTurnTime: 0.8,            // ハンドルが回ってカプセルが出るまで（秒）
+    giftReward: 2,                 // あげたときのお礼
+    capsuleReward: 2,              // カプセルを拾う
+    capsuleMax: 8,                 // まちに落ちているカプセル
+    capsuleRange: 2,               // 台からどこまでに落ちるか（ななめも1と数える）
+    gachaPlayTime: 5,              // 住人がガシャで遊ぶ長さ（秒）
+    residentFigureMax: 30,
+    shelfSlots: 3,
+    shelfLove: 1,                  // ペットがたなを見たなかよし（見る長さは toyPlayTime）
   };
 })(window.Game = window.Game || {});
 </script>
@@ -316,15 +426,36 @@ button:disabled { opacity: .45; }
     // ゲームセンター
     crane:    { color: '#f48fb1', line: '#c2185b', emoji: '🕹️', glass: '#e1f5fe' },
     gift:     { emoji: '🎁' },
+    // ガシャポン
+    gachaPet:    { color: '#81d4fa', line: '#0277bd', emoji: '🐾' },
+    gachaTown:   { color: '#a5d6a7', line: '#2e7d32', emoji: '🧑' },
+    gachaFood:   { color: '#ffcc80', line: '#ef6c00', emoji: '🍔' },
+    gachaGlass:  '#ffffffcc',
+    figureShelf: { color: '#a1887f', line: '#5d4037', board: '#d7ccc8' },
+    capsule:     { top: '#ef5350', bottom: '#fafafa', line: '#9e9e9e' },
+    pedestal:    '#9e9e9e',
+    pedestalGold: '#ffc107',
+    newMark:     'NEW',
+    figures: {
+      figDog: { emoji: '🐕' }, figCat: { emoji: '🐈' }, figRabbit: { emoji: '🐇' }, figHamster: { emoji: '🐹' },
+      figHedgehog: { emoji: '🦔' }, figMouse: { emoji: '🐁' }, figParakeet: { emoji: '🦜' }, figTurtle: { emoji: '🐢' },
+      figBurgerClerk: { emoji: '🧑‍🍳' }, figPetClerk: { emoji: '🧑‍🌾' }, figFurnitureClerk: { emoji: '🧑‍🔧' },
+      figGrandma: { emoji: '👵' }, figGrandpa: { emoji: '👴' }, figKid: { emoji: '👧' },
+      figBurger: { emoji: '🍔' }, figBun: { emoji: '🍞' }, figPatty: { emoji: '🥩' }, figCheese: { emoji: '🧀' },
+      figLettuce: { emoji: '🥬' }, figBone: { emoji: '🦴' },
+      trophyPet: { emoji: '🏆' }, trophyTown: { emoji: '🏆' }, trophyFood: { emoji: '🏆' },
+    },
     trickLabels: { spin: 'くるっと まわる', jump: 'ジャンプ' },
   };
 })(window.Game = window.Game || {});
 </script>
 <script>
-// まちのマス目。床（floor）と上のもの（obj: wall/door/bed/counter/petCounter/furnitureCounter/crane/家具）を1マスに1つずつ
+// まちのマス目。床（floor）と上のもの（obj: wall/door/bed/counter/petCounter/furnitureCounter/crane/ガシャ台/かざりだな/家具）を1マスに1つずつ
 (function (G) {
-  const BLOCKING = { wall: true, bed: true, counter: true, petCounter: true, furnitureCounter: true, crane: true };
-  const OBJECTS = ['wall', 'door', 'bed', 'counter', 'petCounter', 'furnitureCounter', 'crane'];
+  const BLOCKING = { wall: true, bed: true, counter: true, petCounter: true, furnitureCounter: true, crane: true,
+    gachaPet: true, gachaTown: true, gachaFood: true, figureShelf: true };
+  const OBJECTS = ['wall', 'door', 'bed', 'counter', 'petCounter', 'furnitureCounter', 'crane',
+    'gachaPet', 'gachaTown', 'gachaFood', 'figureShelf'];
   for (const k of G.config.furnitureKinds) { BLOCKING[k.id] = true; OBJECTS.push(k.id); } // 家具は全部通れない
 
   function create(w, h) {
@@ -867,7 +998,7 @@ button:disabled { opacity: .45; }
 
   const count = (rec) => CG().count(rec.slots);
   // その台で遊んでいる住人
-  const playerOf = (s, k) => s.residents.find(r => r.state === 'playingCrane' && r.craneKey === k) || null;
+  const playerOf = (s, k) => s.residents.find(r => r.state === 'playingMachine' && r.machineKey === k) || null;
 
   // 自分が遊べないわけ: 'empty' | 'busy' | 'money' | null
   function playBlock(s, k) {
@@ -890,7 +1021,7 @@ button:disabled { opacity: .45; }
     if (why) return { ok: false, why };
     s.player.money -= C().cranePlayPrice;
     s.cranePlay = { key: k, mode: 'play', armX: CG().ARM_START, phase: 'ready', t: 0, holding: false, result: null };
-    G.residents.leaveCrane(s, k);
+    G.residents.leaveMachine(s, k);
     return { ok: true };
   }
 
@@ -950,7 +1081,7 @@ button:disabled { opacity: .45; }
     if (why) return { ok: false, why };
     const plan = CG().stockPlan(s.cranes[k].slots, s.unlocked, G.rng);
     s.cranePlay = { key: k, mode: 'stock', target: plan.target, todo: plan.todo, done: 0 };
-    G.residents.leaveCrane(s, k);
+    G.residents.leaveMachine(s, k);
     return { ok: true };
   }
 
@@ -1008,10 +1139,296 @@ button:disabled { opacity: .45; }
 })(window.Game = window.Game || {});
 </script>
 <script>
+// ガシャポンの計算だけ: どのフィギュアが出るか（続けてダブった回数で必ず NEW）、シリーズがそろったか
+// owned は { id: 数 }。乱数は引数でもらう
+(function (G) {
+  const C = () => G.config;
+
+  const kindOf = (id) => C().figureKinds.find(k => k.id === id) || null;
+  const seriesInfo = (series) => C().gachaSeries.find(x => x.id === series) || null;
+  const seriesOfMachine = (type) => { const x = C().gachaSeries.find(g => g.machine === type); return x ? x.id : null; };
+  const isMachine = (type) => !!seriesOfMachine(type);
+  // ガシャから出るフィギュア（トロフィーは入らない）
+  const seriesFigures = (series) => C().figureKinds.filter(k => k.series === series && !k.trophy).map(k => k.id);
+  const seriesOf = (id) => { const k = kindOf(id); return k ? k.series : null; };
+  const trophyOf = (series) => { const x = seriesInfo(series); return x ? x.trophy : null; };
+  const has = (owned, id) => (owned[id] || 0) > 0;
+  const missing = (series, owned) => seriesFigures(series).filter(id => !has(owned, id));
+  const isComplete = (series, owned) => missing(series, owned).length === 0;
+
+  function pick(series, owned, streak, rng) {
+    const miss = missing(series, owned);
+    const pool = streak >= C().gachaPityAt && miss.length ? miss : seriesFigures(series);
+    return pool[Math.floor(rng() * pool.length)];
+  }
+
+  G.gachaLogic = { kindOf, seriesInfo, seriesOfMachine, isMachine, seriesFigures, seriesOf, trophyOf, missing, isComplete, pick };
+})(window.Game = window.Game || {});
+</script>
+<script>
+// ミニフィギュア: 持っている数（s.figures = { id: 数 }）、トロフィー、住人にあげる、かざりだな
+// たなの記録 s.shelves[key] = [id|null ×3]。マスには { type: 'figureShelf' }
+(function (G) {
+  const C = () => G.config, GL = () => G.gachaLogic, W = () => G.world;
+
+  const count = (s, id) => s.figures[id] || 0;
+
+  // 1体足す。はじめてなら isNew。シリーズの最後の1種類なら、トロフィーを1回だけ足す
+  function add(s, id) {
+    const isNew = !count(s, id);
+    s.figures[id] = count(s, id) + 1;
+    let trophy = null;
+    const series = GL().seriesOf(id), t = GL().trophyOf(series);
+    if (isNew && t && !count(s, t) && GL().isComplete(series, s.figures)) { s.figures[t] = 1; trophy = t; }
+    return { isNew, trophy };
+  }
+
+  // あげられるフィギュア（2体目から。トロフィーはあげられない）
+  const giftable = (s) => C().figureKinds.filter(k => !k.trophy && count(s, k.id) >= 2).map(k => k.id);
+
+  // 住人にあげる。お礼のお金としあわせ
+  function give(s, r, id) {
+    const k = GL().kindOf(id);
+    if (!k || k.trophy || count(s, id) < 2) return { ok: false };
+    s.figures[id]--;
+    r.figures.push(id);
+    while (r.figures.length > C().residentFigureMax) r.figures.shift();
+    s.player.money += C().giftReward;
+    r.happiness = Math.min(C().happinessMax, (r.happiness || 0) + 1);
+    return { ok: true, reward: C().giftReward };
+  }
+
+  // 住人のフィギュアを足す（ガシャで遊んだとき）
+  function residentAdd(r, id) {
+    r.figures.push(id);
+    while (r.figures.length > C().residentFigureMax) r.figures.shift();
+  }
+
+  const emptyShelf = () => new Array(C().shelfSlots).fill(null);
+  const shelfAt = (s, k) => s.shelves[k] || null;
+
+  // 自分のまわり（となり・ななめ）のたなの key。なければ null
+  function nearShelf(s) {
+    const pt = G.player.tile(s.player);
+    return W().findAdjacent(s.world, pt.x, pt.y, 'figureShelf');
+  }
+
+  // 場所 i に id を置く（null ではずす）。持っていないものは置けない
+  function setSlot(s, k, i, id) {
+    const sh = shelfAt(s, k);
+    if (!sh || i < 0 || i >= sh.length) return false;
+    if (id !== null && !count(s, id)) return false;
+    sh[i] = id;
+    return true;
+  }
+
+  // マスのたなと記録をそろえる。たなが消えたら記録を消す（フィギュアは減らない）
+  function reconcile(s) {
+    const keys = new Set(W().findAll(s.world, 'figureShelf').map(p => W().key(p.x, p.y)));
+    for (const k of keys) if (!s.shelves[k]) s.shelves[k] = emptyShelf();
+    for (const k of Object.keys(s.shelves)) if (!keys.has(k)) delete s.shelves[k];
+  }
+
+  // 読み込んだとき: 知らない id・おかしい数を取り除く
+  function restore(s) {
+    const known = (id) => !!GL().kindOf(id);
+    const figs = s.figures && typeof s.figures === 'object' ? s.figures : {};
+    s.figures = {};
+    for (const [id, n] of Object.entries(figs)) if (known(id) && Number.isInteger(n) && n >= 1) s.figures[id] = n;
+    const st = s.streak && typeof s.streak === 'object' ? s.streak : {};
+    s.streak = {};
+    for (const g of C().gachaSeries) s.streak[g.id] = Number.isInteger(st[g.id]) && st[g.id] >= 0 ? st[g.id] : 0;
+    const shelves = s.shelves && typeof s.shelves === 'object' ? s.shelves : {};
+    s.shelves = {};
+    for (const [k, sh] of Object.entries(shelves)) {
+      const { x, y } = W().parseKey(k), o = W().objAt(s.world, x, y);
+      if (!o || o.type !== 'figureShelf' || !Array.isArray(sh)) continue;
+      s.shelves[k] = emptyShelf().map((_, i) => (known(sh[i]) && count(s, sh[i]) ? sh[i] : null));
+    }
+  }
+
+  G.figures = { count, add, giftable, give, residentAdd, shelfAt, nearShelf, setSlot, reconcile, restore };
+})(window.Game = window.Game || {});
+</script>
+<script>
+// ガシャポン: シリーズごとのガシャ台（gachaPet / gachaTown / gachaFood）。建てる（お金）・消えたら返金・まわす・カプセル
+// 台の記録 s.gachas[key] = { paid }。まわしている途中は s.gachaPlay（セーブしない）
+// 住人が遊ぶと、台の近くに空のカプセル（s.capsules = ["x,y"]）を落とす。自分が入ると拾ってお金
+(function (G) {
+  const W = () => G.world, C = () => G.config, GL = () => G.gachaLogic;
+
+  const machineKeys = (s) => {
+    const out = [];
+    for (const g of C().gachaSeries) for (const p of W().findAll(s.world, g.machine)) out.push(W().key(p.x, p.y));
+    return out;
+  };
+
+  // k のマスの台のシリーズ。台でなければ null
+  function seriesAt(s, k) {
+    const { x, y } = W().parseKey(k), o = W().objAt(s.world, x, y);
+    return o ? GL().seriesOfMachine(o.type) : null;
+  }
+
+  // マスの台と記録をそろえる。マスから消えた台は払ったお金を返す。通れなくなったマスのカプセルを消す。戻り値は返したお金
+  function reconcile(s) {
+    const keys = new Set(machineKeys(s));
+    for (const k of keys) if (!s.gachas[k]) s.gachas[k] = { paid: 0 };
+    let refund = 0;
+    for (const k of Object.keys(s.gachas)) {
+      if (keys.has(k)) continue;
+      refund += s.gachas[k].paid || 0;
+      delete s.gachas[k];
+      if (s.gachaPlay && s.gachaPlay.key === k) s.gachaPlay = null;
+    }
+    s.player.money += refund;
+    s.capsules = s.capsules.filter(k => { const { x, y } = W().parseKey(k); return W().isPassable(s.world, x, y); });
+    return refund;
+  }
+
+  // 台を建てる。同じ種類の台の上なら何も変わらない。別のガシャ台の上なら、払ってから前の台のお金を返す
+  function build(s, x, y, type) {
+    const o = W().objAt(s.world, x, y);
+    if (o && o.type === type) return { ok: true, same: true };
+    if (s.player.money < C().gachaCost) return { ok: false, why: 'money' };
+    const res = W().place(s.world, x, y, type, G.state.occupied(s));
+    if (!res.ok) return res;
+    const k = W().key(x, y), old = s.gachas[k];
+    s.player.money -= C().gachaCost;
+    let refund = 0;
+    if (old) { refund = old.paid || 0; s.player.money += refund; if (s.gachaPlay && s.gachaPlay.key === k) s.gachaPlay = null; }
+    s.gachas[k] = { paid: C().gachaCost };
+    return Object.assign(res, { refund });
+  }
+
+  // 自分のまわり（となり・ななめ）の台で、いちばん近いものの key。なければ null
+  function near(s) {
+    const p = s.player, pt = G.player.tile(p);
+    let best = null, bd = Infinity;
+    for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+      const x = pt.x + dx, y = pt.y + dy, o = W().objAt(s.world, x, y);
+      if (!o || !GL().isMachine(o.type)) continue;
+      const d = Math.hypot(x - p.x, y - p.y);
+      if (d < bd) { bd = d; best = W().key(x, y); }
+    }
+    return best;
+  }
+
+  // その台で遊んでいる住人
+  const playerOf = (s, k) => s.residents.find(r => r.state === 'playingMachine' && r.machineKey === k) || null;
+
+  // 画面を開けないわけ: 'busy' | null。まわせないわけ: 'money' | null
+  const openBlock = (s, k) => (playerOf(s, k) ? 'busy' : null);
+  const turnBlock = (s) => (s.player.money < C().gachaPlayPrice ? 'money' : null);
+
+  // ガシャの画面を開く（お金はまだ減らない）。向かっている住人は家に帰る
+  function open(s, k) {
+    if (!s.gachas[k]) return { ok: false };
+    const why = openBlock(s, k);
+    if (why) return { ok: false, why };
+    s.gachaPlay = { key: k, phase: 'ready', t: 0, result: null };
+    G.residents.leaveMachine(s, k);
+    return { ok: true };
+  }
+
+  // ぐるっ: 3コイン払ってハンドルを回す（結果が出たあとなら「もういっかい」）
+  function turn(s) {
+    const gp = s.gachaPlay;
+    if (!gp || (gp.phase !== 'ready' && gp.phase !== 'open')) return { ok: false };
+    const why = turnBlock(s);
+    if (why) return { ok: false, why };
+    s.player.money -= C().gachaPlayPrice;
+    Object.assign(gp, { phase: 'turning', t: 0, result: null });
+    return { ok: true };
+  }
+
+  // カプセルを開ける: 出るものを決めて、持っている数・続けてダブった回数・トロフィー
+  function crack(s) {
+    const gp = s.gachaPlay;
+    if (!gp || (gp.phase !== 'turning' && gp.phase !== 'capsule')) return null;
+    const series = seriesAt(s, gp.key);
+    const id = GL().pick(series, s.figures, s.streak[series] || 0, G.rng);
+    const res = G.figures.add(s, id);
+    s.streak[series] = res.isNew ? 0 : (s.streak[series] || 0) + 1;
+    const pet = GL().kindOf(id).pet;
+    if (pet) for (const p of s.pets) if (p.follow && p.kind === pet) p.trick = { id: 'jump', until: s.time + C().trickTime };
+    gp.result = { id, isNew: res.isNew, trophy: res.trophy };
+    gp.phase = 'open';
+    return gp.result;
+  }
+
+  // とじる: 開ける前なら、開けたことにしてから閉じる。戻り値はそのときの結果（なければ null）
+  function close(s) {
+    const gp = s.gachaPlay;
+    if (!gp) return null;
+    const res = gp.phase === 'turning' || gp.phase === 'capsule' ? crack(s) : null;
+    s.gachaPlay = null;
+    return res;
+  }
+
+  // 住人が遊び終わった: 台の近くの通れる空いたマスに、空のカプセルを1つ落とす
+  function dropCapsule(s, k) {
+    const c = C();
+    if (s.capsules.length >= c.capsuleMax) return null;
+    const { x: mx, y: my } = W().parseKey(k), R = c.capsuleRange;
+    const occ = G.state.occupied(s), have = new Set(s.capsules), cands = [];
+    for (let y = my - R; y <= my + R; y++) for (let x = mx - R; x <= mx + R; x++) {
+      const kk = W().key(x, y);
+      if (W().isPassable(s.world, x, y) && !occ.has(kk) && !have.has(kk)) cands.push(kk);
+    }
+    if (!cands.length) return null;
+    const kk = cands[Math.floor(G.rng() * cands.length)];
+    s.capsules.push(kk);
+    return kk;
+  }
+
+  // 自分のいるマスのカプセルを拾う
+  function pickUp(s) {
+    const pt = G.player.tile(s.player), k = W().key(pt.x, pt.y), i = s.capsules.indexOf(k);
+    if (i < 0) return false;
+    s.capsules.splice(i, 1);
+    s.player.money += C().capsuleReward;
+    G.state.emit({ type: 'capsule', reward: C().capsuleReward });
+    return true;
+  }
+
+  function update(s, dt) {
+    const gp = s.gachaPlay;
+    if (gp && gp.phase === 'turning') {
+      gp.t += dt;
+      if (gp.t >= C().gachaTurnTime) gp.phase = 'capsule';
+    }
+    pickUp(s);
+  }
+
+  // 読み込んだとき: 台のないマスの記録は（返金せずに）消す。地図の外・通れないマスのカプセルを消す
+  function restore(s) {
+    s.gachaPlay = null;
+    const gs = s.gachas && typeof s.gachas === 'object' ? s.gachas : {};
+    s.gachas = {};
+    for (const [k, rec] of Object.entries(gs)) {
+      if (!seriesAt(s, k) || !rec) continue;
+      s.gachas[k] = { paid: typeof rec.paid === 'number' ? rec.paid : 0 };
+    }
+    const caps = Array.isArray(s.capsules) ? s.capsules : [];
+    const seen = new Set();
+    s.capsules = caps.filter(k => {
+      if (typeof k !== 'string' || seen.has(k)) return false;
+      seen.add(k);
+      const { x, y } = W().parseKey(k);
+      return Number.isInteger(x) && Number.isInteger(y) && W().isPassable(s.world, x, y);
+    });
+  }
+
+  G.gacha = { seriesAt, reconcile, build, near, playerOf, openBlock, turnBlock, open, turn, crack, close,
+    dropCapsule, pickUp, update, restore };
+})(window.Game = window.Game || {});
+</script>
+<script>
 // 住人: ベッドを置くと引っ越してくる。家とハンバーガー屋を行き来する
 // 状態: arriving → home → toShop → queued → returning → home … / ベッドが消えたら leaving
 //       家にいるとき、ときどき home → toFurniture → using → returning（家の近くの家具を使う）
-//       ときどき home → toCrane → playingCrane → returning（クレーンで遊ぶ。景品を取ると gift にして、はなすとくれる）
+//       ときどき home → toMachine → playingMachine → returning（クレーン台かガシャ台で遊ぶ）
+//       クレーン: 景品を取ると gift にして、はなすとくれる / ガシャ: フィギュアが figures に入り、カプセルを落とす
 (function (G) {
   const W = () => G.world, P = () => G.pathfind;
   const NAMES = ['たろう', 'はなこ', 'けんた', 'さくら', 'ゆうと', 'みさき', 'そうた', 'あおい',
@@ -1046,7 +1463,7 @@ button:disabled { opacity: .45; }
       hungerTimer: G.config.residentHungerInterval * (0.3 + 0.4 * G.rng()), pullBlockedUntil: 0,
       wish: null, wishTimer: G.wishes.firstTimer(G.rng), happiness: 0,
       useTimer: useInterval(), useKey: null, useFrom: null, useUntil: 0,
-      craneTimer: craneInterval(), craneKey: null, craneUntil: 0, gift: null,
+      visitTimer: visitInterval(), machineKey: null, machineUntil: 0, gift: null, figures: [],
     };
     const home = homeSpot(s, r);
     const out = P().find(s.world, home, P().edgeKeys(s.world));
@@ -1058,12 +1475,12 @@ button:disabled { opacity: .45; }
   }
 
   const useInterval = () => { const c = G.config; return c.furnitureUseMin + (c.furnitureUseMax - c.furnitureUseMin) * G.rng(); };
-  const craneInterval = () => { const c = G.config; return c.craneVisitMin + (c.craneVisitMax - c.craneVisitMin) * G.rng(); };
+  const visitInterval = () => { const c = G.config; return c.craneVisitMin + (c.craneVisitMax - c.craneVisitMin) * G.rng(); };
 
-  // 家具の上に座っていたら、となりのマスへ戻る。使っている家具・クレーン台をはなす
+  // 家具の上に座っていたら、となりのマスへ戻る。使っている家具・台をはなす
   function standUp(r) {
     if (r.useFrom) { r.x = r.useFrom.x; r.y = r.useFrom.y; }
-    r.useFrom = null; r.useKey = null; r.craneKey = null;
+    r.useFrom = null; r.useKey = null; r.machineKey = null;
   }
 
   // useKey の家具がまだあるか
@@ -1104,40 +1521,71 @@ button:disabled { opacity: .45; }
     }
   }
 
-  // 景品の入っているクレーン台（ほかの人が向かっていない・遊んでいない・自分が使っていない）へ向かう。距離の決まりはない
-  function goCrane(s, r) {
-    const taken = new Set(s.residents.filter(o => o !== r && o.craneKey).map(o => o.craneKey));
+  // k のマスの台の種類: 'crane' | 'gacha' | null
+  function machineAt(s, k) {
+    if (!k) return null;
+    const { x, y } = W().parseKey(k), o = W().objAt(s.world, x, y);
+    if (!o) return null;
+    if (o.type === 'crane') return s.cranes[k] ? 'crane' : null;
+    return G.gachaLogic.isMachine(o.type) && s.gachas[k] ? 'gacha' : null;
+  }
+
+  // 遊びに行ける台（ほかの人が向かっていない・遊んでいない・自分が使っていない）へ向かう。距離の決まりはない
+  // クレーンは景品が入っていて、自分が gift を持っていないときだけ。ガシャはいつでも
+  function goMachine(s, r) {
+    const taken = new Set(s.residents.filter(o => o !== r && o.machineKey).map(o => o.machineKey));
     if (s.cranePlay) taken.add(s.cranePlay.key);
-    const cands = Object.keys(s.cranes).filter(k => !taken.has(k) && G.crane.count(s.cranes[k]));
-    while (cands.length) {
-      const k = cands.splice(Math.floor(G.rng() * cands.length), 1)[0];
+    if (s.gachaPlay) taken.add(s.gachaPlay.key);
+    const cands = [];
+    if (!r.gift) for (const k of Object.keys(s.cranes)) if (G.crane.count(s.cranes[k])) cands.push(k);
+    for (const k of Object.keys(s.gachas)) cands.push(k);
+    const free = cands.filter(k => !taken.has(k));
+    while (free.length) {
+      const k = free.splice(Math.floor(G.rng() * free.length), 1)[0];
       const { x, y } = W().parseKey(k);
       const goals = new Set(W().passableNeighbors(s.world, x, y).map(p => W().key(p.x, p.y)));
       const path = goals.size && P().find(s.world, tileOf(r), goals);
       if (!path) continue;
-      r.craneKey = k;
+      r.machineKey = k;
       r.goal = path.length ? path[path.length - 1] : tileOf(r);
       r.path = path;
-      r.state = 'toCrane';
+      r.state = 'toMachine';
       return true;
     }
     return false;
   }
 
-  // 自分がその台で遊び始めた・ならべ始めた: 向かっている住人は家に帰る
-  function leaveCrane(s, k) {
-    for (const r of s.residents) if (r.state === 'toCrane' && r.craneKey === k) goHome(s, r);
+  // 自分がその台を使い始めた: 向かっている住人は家に帰る
+  function leaveMachine(s, k) {
+    for (const r of s.residents) if (r.state === 'toMachine' && r.machineKey === k) goHome(s, r);
   }
 
-  // 遊び終わり: ときどき景品を1つ取る
-  function finishCrane(s, r) {
-    const rec = s.cranes[r.craneKey];
-    if (rec && G.crane.count(rec) && G.rng() < G.config.craneResidentWin) {
-      const full = [];
-      rec.slots.forEach((id, i) => { if (id) full.push(i); });
-      const i = full[Math.floor(G.rng() * full.length)];
-      r.gift = rec.slots[i];
-      rec.slots[i] = null;
+  // 着いた: 遊べるなら遊び始める。自分が使っている・ほかの人が遊んでいる・クレーンがからっぽなら帰る
+  function arriveMachine(s, r) {
+    const k = r.machineKey, type = machineAt(s, k);
+    const mine = (s.cranePlay && s.cranePlay.key === k) || (s.gachaPlay && s.gachaPlay.key === k);
+    const other = s.residents.some(o => o !== r && o.state === 'playingMachine' && o.machineKey === k);
+    if (!type || mine || other || (type === 'crane' && !G.crane.count(s.cranes[k]))) { goHome(s, r); return; }
+    r.state = 'playingMachine';
+    r.machineUntil = s.time + (type === 'crane' ? G.config.cranePlayTime : G.config.gachaPlayTime);
+  }
+
+  // 遊び終わり。クレーン: ときどき景品を1つ取る / ガシャ: フィギュアが1つ入り、カプセルを落とす
+  function finishMachine(s, r) {
+    const k = r.machineKey, type = machineAt(s, k);
+    if (type === 'crane') {
+      const rec = s.cranes[k];
+      if (G.crane.count(rec) && G.rng() < G.config.craneResidentWin) {
+        const full = [];
+        rec.slots.forEach((id, i) => { if (id) full.push(i); });
+        const i = full[Math.floor(G.rng() * full.length)];
+        r.gift = rec.slots[i];
+        rec.slots[i] = null;
+      }
+    } else if (type === 'gacha') {
+      const figs = G.gachaLogic.seriesFigures(G.gacha.seriesAt(s, k));
+      G.figures.residentAdd(r, figs[Math.floor(G.rng() * figs.length)]);
+      G.gacha.dropCapsule(s, k);
     }
     goHome(s, r);
   }
@@ -1266,10 +1714,10 @@ button:disabled { opacity: .45; }
             goFurniture(s, r);
           }
           if (r.state !== 'home') break;
-          r.craneTimer -= dt;
-          if (r.craneTimer <= 0) {
-            r.craneTimer = craneInterval();
-            if (!r.gift) goCrane(s, r); // 景品を渡すまでは遊びに行かない
+          r.visitTimer -= dt;
+          if (r.visitTimer <= 0) {
+            r.visitTimer = visitInterval();
+            goMachine(s, r); // 景品を渡すまではクレーンには行かない
           }
           break;
         case 'toFurniture':
@@ -1291,27 +1739,23 @@ button:disabled { opacity: .45; }
           } else if (s.time >= r.useUntil) goHome(s, r);
           break;
         }
-        case 'toCrane':
-        case 'playingCrane': {
-          const rec = s.cranes[r.craneKey];
-          if (!rec) { goHome(s, r); break; }
+        case 'toMachine':
+        case 'playingMachine': {
+          if (!machineAt(s, r.machineKey)) { goHome(s, r); break; }
           r.hungerTimer -= dt;
           if (r.hungerTimer <= 0) {
             // おなかがすいたら、遊ぶのをやめてお店へ。行けなければ続ける
-            const key = r.craneKey;
+            const key = r.machineKey;
             standUp(r);
             if (goShop(s, r)) break;
             r.hungerTimer = G.config.retryInterval;
-            r.craneKey = key;
+            r.machineKey = key;
           }
-          if (r.state === 'toCrane') {
+          if (r.state === 'toMachine') {
             const st = walk(s, r, dt);
-            if (st === 'arrived') {
-              const busy = (s.cranePlay && s.cranePlay.key === r.craneKey) || G.crane.playerOf(s, r.craneKey);
-              if (!G.crane.count(rec) || busy) goHome(s, r);
-              else { r.state = 'playingCrane'; r.craneUntil = s.time + G.config.cranePlayTime; }
-            } else if (st === 'blocked') goHome(s, r);
-          } else if (s.time >= r.craneUntil) finishCrane(s, r);
+            if (st === 'arrived') arriveMachine(s, r);
+            else if (st === 'blocked') goHome(s, r);
+          } else if (s.time >= r.machineUntil) finishMachine(s, r);
           break;
         }
         case 'toShop': {
@@ -1335,7 +1779,7 @@ button:disabled { opacity: .45; }
 
   // おなかがすいているのに、お店がない・行けない・混んでいて家で待っている
   const WAIT_MOODS = { noShop: true, cantReach: true, full: true };
-  const waitingHungry = (r) => !!WAIT_MOODS[r.mood] && ['home', 'toFurniture', 'using', 'toCrane', 'playingCrane'].indexOf(r.state) >= 0;
+  const waitingHungry = (r) => !!WAIT_MOODS[r.mood] && ['home', 'toFurniture', 'using', 'toMachine', 'playingMachine'].indexOf(r.state) >= 0;
   // 頭の上に 🍔 の吹き出しを出すか（ほしいものより先）
   const wantsBurger = (r) => r.state === 'toShop' || r.state === 'queued' || waitingHungry(r);
 
@@ -1360,7 +1804,7 @@ button:disabled { opacity: .45; }
     return { text: oneOf(LINES[r.mood] || LINES.normal) };
   }
 
-  // 読み込んだとき: 家具・クレーンへ向かう途中・使っている途中は家にいることにする。足りない項目をうめる
+  // 読み込んだとき: 家具・台へ向かう途中・使っている途中は家にいることにする。足りない項目をうめる
   function restore(s, r) {
     if (!r.wish || !G.furniture.kindOf(r.wish)) r.wish = null;
     if (typeof r.happiness !== 'number') r.happiness = 0;
@@ -1368,16 +1812,19 @@ button:disabled { opacity: .45; }
     if (typeof r.useTimer !== 'number') r.useTimer = useInterval();
     const g = r.gift && G.furniture.kindOf(r.gift);
     if (!g || !g.prize) r.gift = null;
-    if (typeof r.craneTimer !== 'number') r.craneTimer = craneInterval();
-    if (['toFurniture', 'using', 'toCrane', 'playingCrane'].indexOf(r.state) >= 0) warpHome(s, r);
-    r.useKey = null; r.useFrom = null; r.useUntil = 0; r.craneKey = null; r.craneUntil = 0;
+    if (typeof r.visitTimer !== 'number') r.visitTimer = typeof r.craneTimer === 'number' ? r.craneTimer : visitInterval();
+    delete r.craneTimer; delete r.craneKey; delete r.craneUntil;
+    r.figures = Array.isArray(r.figures) ? r.figures.filter(id => G.gachaLogic.kindOf(id) && !G.gachaLogic.kindOf(id).trophy) : [];
+    r.figures = r.figures.slice(-G.config.residentFigureMax);
+    if (['toFurniture', 'using', 'toCrane', 'playingCrane', 'toMachine', 'playingMachine'].indexOf(r.state) >= 0) warpHome(s, r);
+    r.useKey = null; r.useFrom = null; r.useUntil = 0; r.machineKey = null; r.machineUntil = 0;
     return r;
   }
 
   // 自分のまわり1.5マス以内でいちばん近い住人
   function near(s) { return G.player.nearest(s.player, s.residents, 1.5); }
 
-  G.residents = { NAMES, LINES, create, update, served, talk, near, homeSpot, goShop, goCrane, leaveCrane, restore, wantsBurger };
+  G.residents = { NAMES, LINES, create, update, served, talk, near, homeSpot, goShop, goMachine, leaveMachine, machineAt, restore, wantsBurger };
 })(window.Game = window.Game || {});
 </script>
 <script>
@@ -1438,6 +1885,7 @@ button:disabled { opacity: .45; }
 // ペット: ついてくる（follow）か、自分のベッドのまわりでうろうろ（idle ↔ walking）
 // 閉じ込められたら自分のベッドのそばへぱっと戻る（エラーにしない）
 // おうちにいる子は、ときどきベッドの近くのおもちゃへ行って遊ぶ（toToy → toy）。遊ぶと なかよし +1
+// 同じ種類のフィギュア（かペットのトロフィー）を飾ったかざりだなも、同じように見に行く
 (function (G) {
   const W = () => G.world, P = () => G.pathfind, C = () => G.config;
   const tileOf = (p) => ({ x: Math.round(p.x), y: Math.round(p.y) });
@@ -1534,12 +1982,18 @@ button:disabled { opacity: .45; }
     p.idleUntil = s.time + 1;
   }
 
-  // k のマスにあるおもちゃの種類。なければ null
-  function toyAt(s, k) {
+  // k のマスで、ペット p が遊べる・見られるもの { emoji, love }。なければ null
+  // おもちゃ、または p と同じ種類のフィギュアかペットのトロフィーが飾ってあるかざりだな
+  function toyAt(s, k, p) {
     if (!k) return null;
     const { x, y } = W().parseKey(k), o = W().objAt(s.world, x, y);
-    const kind = o && G.furniture.kindOf(o.type);
-    return kind && kind.petToy ? kind : null;
+    if (!o) return null;
+    const kind = G.furniture.kindOf(o.type);
+    if (kind && kind.petToy) return { emoji: G.sprites.furniture[o.type].emoji, love: C().toyLove };
+    if (o.type !== 'figureShelf' || !p) return null;
+    const sh = G.figures.shelfAt(s, k) || [];
+    const id = sh.find(f => f && (f === 'trophyPet' || G.gachaLogic.kindOf(f).pet === p.kind));
+    return id ? { emoji: G.sprites.figures[id].emoji, love: C().shelfLove, shelf: true } : null;
   }
 
   function stopToy(p) {
@@ -1550,7 +2004,8 @@ button:disabled { opacity: .45; }
   function toyStep(s, p, dt) {
     const c = C();
     if (p.state === 'toToy' || p.state === 'toy') {
-      if (!toyAt(s, p.toyKey)) { stopToy(p); return false; }
+      const toy = toyAt(s, p.toyKey, p);
+      if (!toy) { stopToy(p); return false; }
       if (p.state === 'toToy') {
         const st = walk(s, p, c.petSpeeds[kindOf(p.kind).move], dt);
         if (st === 'arrived') { p.state = 'toy'; p.toyUntil = s.time + c.toyPlayTime; }
@@ -1558,7 +2013,7 @@ button:disabled { opacity: .45; }
         return true;
       }
       if (s.time >= p.toyUntil) {
-        G.state.emit({ type: 'love', pet: p, res: G.petCare.addLove(p, c.toyLove) });
+        G.state.emit({ type: 'love', pet: p, res: G.petCare.addLove(p, toy.love) });
         stopToy(p);
       }
       return true;
@@ -1568,7 +2023,7 @@ button:disabled { opacity: .45; }
     p.toyTimer = toyInterval();
     const b = c.ownBed, R = c.petHomeRadius, toys = [];
     for (let y = b.y - R; y <= b.y + R; y++) for (let x = b.x - R; x <= b.x + R; x++)
-      if (Math.hypot(x - b.x, y - b.y) <= R && toyAt(s, W().key(x, y))) toys.push({ x, y });
+      if (Math.hypot(x - b.x, y - b.y) <= R && toyAt(s, W().key(x, y), p)) toys.push({ x, y });
     while (toys.length) {
       const t = toys.splice(Math.floor(G.rng() * toys.length), 1)[0];
       const goals = new Set(W().passableNeighbors(s.world, t.x, t.y).map(q => W().key(q.x, q.y)));
@@ -1649,7 +2104,7 @@ button:disabled { opacity: .45; }
 // ゲーム全体の状態（セーブするのはこれ全部）と、1コマ進める処理
 (function (G) {
   G.rng = G.rng || Math.random;
-  const VERSION = 4;
+  const VERSION = 5;
 
   function create() {
     const c = G.config;
@@ -1664,6 +2119,7 @@ button:disabled { opacity: .45; }
       fridge: 0, unlocked: [],
       shops: {},
       cranes: {}, cranePlay: null,
+      gachas: {}, gachaPlay: null, figures: {}, streak: { pet: 0, town: 0, food: 0 }, shelves: {}, capsules: [],
       job: { active: false, counter: null, deliveries: 0, customerId: null, order: null, stack: [] },
     };
   }
@@ -1686,10 +2142,13 @@ button:disabled { opacity: .45; }
     s.time += dt;
     G.shop.reconcile(s);
     G.crane.reconcile(s);
+    G.gacha.reconcile(s);
+    G.figures.reconcile(s);
     G.residents.update(s, dt);
     G.pets.update(s, dt);
     G.shop.update(s, dt);
     G.crane.update(s, dt);
+    G.gacha.update(s, dt);
   }
 
   // 画面に知らせること（クレーンの結果・ペットのなかよしなど）。セーブしない。main が毎コマ取り出す
@@ -1722,6 +2181,10 @@ button:disabled { opacity: .45; }
       s.cranes = {};
       s.version = 4; // 住人の gift・ペットの toyTimer は restore でうめる
     }
+    if (s && s.version === 4 && s.player) {
+      Object.assign(s, { gachas: {}, figures: {}, streak: { pet: 0, town: 0, food: 0 }, shelves: {}, capsules: [] });
+      s.version = 5; // 住人の craneTimer → visitTimer・figures は restore で
+    }
     return s;
   }
 
@@ -1736,11 +2199,16 @@ button:disabled { opacity: .45; }
       && s.shops && typeof s.shops === 'object' && s.job && typeof s.time === 'number'
       && Array.isArray(s.pets) && typeof s.player.food === 'number'
       && typeof s.player.hand === 'number' && typeof s.fridge === 'number' && Array.isArray(s.unlocked)
-      && s.cranes && typeof s.cranes === 'object';
+      && s.cranes && typeof s.cranes === 'object'
+      && s.gachas && typeof s.gachas === 'object' && s.figures && typeof s.figures === 'object'
+      && s.streak && typeof s.streak === 'object' && s.shelves && typeof s.shelves === 'object'
+      && Array.isArray(s.capsules);
     if (!ok) throw new Error('bad save');
     s.pets = G.pets.restore(s.pets); // 知らない種類は取り除き、歩いている途中などは初めから
     G.furniture.restoreWorld(s); // 知らない家具は取り除く
     G.crane.restore(s); // 台のない記録・知らない景品を取り除く。遊んでいる途中は終わり
+    G.figures.restore(s); // 知らないフィギュア・おかしい数・たなのないマスの記録を取り除く
+    G.gacha.restore(s); // 台のない記録・通れないマスのカプセルを取り除く。まわしている途中は終わり
     for (const r of s.residents) G.residents.restore(s, r);
     s.job.active = false; // 開き直したらアルバイトは終わっている
     s.job.customerId = null; s.job.order = null; s.job.stack = [];
@@ -1884,6 +2352,42 @@ button:disabled { opacity: .45; }
     emoji(ctx, sp.emoji, sx, sy + T * 0.22, T * 0.36);
   }
 
+  // ミニフィギュア: 台座（トロフィーは金色）の上に絵
+  function drawFigure(ctx, id, x, y, size) {
+    const S = G.sprites, k = G.gachaLogic.kindOf(id);
+    ctx.fillStyle = k && k.trophy ? S.pedestalGold : S.pedestal;
+    ctx.beginPath(); ctx.ellipse(x, y + size * 0.45, size * 0.45, size * 0.14, 0, 0, Math.PI * 2); ctx.fill();
+    emoji(ctx, S.figures[id].emoji, x, y, size);
+  }
+
+  // ガシャ台: 色の台、丸いガラスにカプセルの点、下にシリーズの絵
+  function drawGacha(ctx, sx, sy, T, type) {
+    const S = G.sprites, sp = S[type], cap = S.capsule;
+    tileRect(ctx, sx, sy, T, sp);
+    ctx.fillStyle = S.gachaGlass;
+    ctx.beginPath(); ctx.arc(sx, sy - T * 0.12, T * 0.3, 0, Math.PI * 2); ctx.fill();
+    const dots = [[-0.12, -0.05, cap.top], [0.1, -0.02, '#42a5f5'], [-0.02, -0.18, '#ffca28'], [0.13, -0.2, '#66bb6a'], [-0.15, -0.22, '#ab47bc']];
+    for (const [dx, dy, col] of dots) { ctx.fillStyle = col; ctx.beginPath(); ctx.arc(sx + dx * T, sy + dy * T, T * 0.07, 0, Math.PI * 2); ctx.fill(); }
+    emoji(ctx, sp.emoji, sx, sy + T * 0.3, T * 0.28);
+  }
+
+  // かざりだな: 木の台に、飾ったフィギュアが3つ並ぶ
+  function drawShelf(ctx, sx, sy, T, slots) {
+    const sp = G.sprites.figureShelf;
+    tileRect(ctx, sx, sy, T, sp);
+    ctx.fillStyle = sp.board;
+    ctx.fillRect(sx - T * 0.44, sy + T * 0.12, T * 0.88, T * 0.08);
+    (slots || []).forEach((id, i) => { if (id) drawFigure(ctx, id, sx + (i - 1) * T * 0.3, sy - T * 0.08, T * 0.32); });
+  }
+
+  // 空のカプセル: 上下で色が違う小さい丸
+  function drawCapsule(ctx, sx, sy, T) {
+    const cap = G.sprites.capsule, r = T * 0.14, y = sy + T * 0.15;
+    ctx.fillStyle = cap.bottom; ctx.beginPath(); ctx.arc(sx, y, r, 0, Math.PI); ctx.fill();
+    ctx.fillStyle = cap.top; ctx.beginPath(); ctx.arc(sx, y, r, Math.PI, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = cap.line; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(sx, y, r, 0, Math.PI * 2); ctx.stroke();
+  }
+
   // ペット: 動き方ごとのゆれ、芸、おなかが空の吹き出し、となりにいるときはハート
   function drawPet(app, pet, sx, sy, now, near) {
     const { ctx, T } = app, S = G.sprites, sp = S.pets[pet.kind], c = G.config;
@@ -1912,8 +2416,9 @@ button:disabled { opacity: .45; }
       if (h) { emoji(ctx, S.heart.emoji.repeat(h), sx, top, T * 0.2); top -= T * 0.2; }
     }
     if (pet.state === 'toy' && pet.toyKey) {
-      const { x, y } = G.world.parseKey(pet.toyKey), o = G.world.objAt(app.s.world, x, y);
-      if (o && S.furniture[o.type]) emoji(ctx, S.furniture[o.type].emoji, sx - size * 0.5, py - size * 0.6 - Math.abs(Math.sin(now * 6)) * T * 0.1, T * 0.25);
+      const toy = G.pets.toyAt(app.s, pet.toyKey, pet);
+      if (toy) emoji(ctx, toy.emoji, sx - size * 0.5, py - size * 0.6 - Math.abs(Math.sin(now * 6)) * T * 0.1, T * 0.25);
+      if (toy && toy.shelf) emoji(ctx, S.heart.emoji, sx - size * 0.5, py - size * 0.95, T * 0.18);
     }
     if (pet.hunger <= 0) {
       emoji(ctx, '💭', sx + size * 0.5, py - size * 0.6, T * 0.4);
@@ -1941,7 +2446,11 @@ button:disabled { opacity: .45; }
       const { x, y } = G.world.parseKey(r.useKey), o = G.world.objAt(app.s.world, x, y);
       if (o && S.furniture[o.type]) emoji(ctx, S.furniture[o.type].react, sx - T * 0.35, sy - T * 0.45, T * 0.3);
     }
-    if (r.state === 'playingCrane') emoji(ctx, S.crane.emoji, sx - T * 0.35, sy - T * 0.45, T * 0.3);
+    if (r.state === 'playingMachine') {
+      const { x, y } = G.world.parseKey(r.machineKey), o = G.world.objAt(app.s.world, x, y);
+      const ch = o && o.type === 'crane' ? S.crane.emoji : o && S[o.type] ? S[o.type].emoji : '';
+      if (ch) emoji(ctx, ch, sx - T * 0.35, sy - T * 0.45, T * 0.3);
+    }
     if (near && r.happiness) emoji(ctx, S.heart.emoji.repeat(r.happiness), sx, sy - T * 0.62, T * 0.18);
   }
 
@@ -1974,6 +2483,8 @@ button:disabled { opacity: .45; }
         emoji(ctx, S.furnitureIcon.emoji, sx, sy + T * 0.1, T * 0.45);
         emoji(ctx, S.furnitureClerk.emoji, sx, sy - T * 0.35, T * 0.6);
       } else if (o.type === 'crane') drawCrane(ctx, sx, sy, T, s.cranes[G.world.key(x, y)]);
+      else if (G.gachaLogic.isMachine(o.type)) drawGacha(ctx, sx, sy, T, o.type);
+      else if (o.type === 'figureShelf') drawShelf(ctx, sx, sy, T, s.shelves[G.world.key(x, y)]);
       else if (S.furniture[o.type]) {
         const sp = S.furniture[o.type];
         if (sp.color) tileRect(ctx, sx, sy, T, sp);
@@ -1983,6 +2494,19 @@ button:disabled { opacity: .45; }
         if (sp.emoji) emoji(ctx, sp.emoji, sx, sy, T * (sp.color ? 0.55 : 0.8));
       } else emoji(ctx, S[o.type].emoji, sx, sy, T * 0.8);
       if (o.own) emoji(ctx, '⭐', sx + T * 0.3, sy - T * 0.3, T * 0.3);
+    }
+
+    // 住人のベッドのはしに、その住人のフィギュア（新しいもの3つ）
+    for (const r of s.residents) {
+      if (!r.figures || !r.figures.length || r.bed.x < x0 || r.bed.x > x1 || r.bed.y < y0 || r.bed.y > y1) continue;
+      const { x: sx, y: sy } = toScreen(app, r.bed.x, r.bed.y);
+      r.figures.slice(-3).forEach((id, i) => drawFigure(ctx, id, sx - T * 0.3 + i * T * 0.3, sy + T * 0.3, T * 0.2));
+    }
+    for (const k of s.capsules) {
+      const { x, y } = G.world.parseKey(k);
+      if (x < x0 || x > x1 || y < y0 || y > y1) continue;
+      const p = toScreen(app, x, y);
+      drawCapsule(ctx, p.x, p.y, T);
     }
 
     if (app.mode === 'build') {
@@ -2024,15 +2548,18 @@ button:disabled { opacity: .45; }
     }
   }
 
-  G.render = { resize, draw, toScreen, screenToTile };
+  G.render = { resize, draw, toScreen, screenToTile, drawFigure };
 })(window.Game = window.Game || {});
 </script>
 <script>
 // 画面の上に重ねる表示（DOM）: 上の表示・ボタン・つくるパレット・アルバイト画面・メニュー・ペットやさん・かぐやさん
-// ・クレーンゲームの画面・ならべるの画面
+// ・クレーンゲームの画面・ならべるの画面・ガシャの画面・かざる・あげる・ずかん
 (function (G) {
   const S = () => G.sprites;
-  let root, els = {}, last = {}, app, tab = 'parts'; // tab: パレットの列 'parts' | 'furniture'
+  let root, els = {}, last = {}, app, tab = 'parts'; // tab: パレットの列 'parts' | 'furniture' | 'gacha'
+  const CAPSULE = '<span class="capsule"></span>';
+  const figEmoji = (id) => S().figures[id].emoji;
+  const figLabel = (id) => G.gachaLogic.kindOf(id).label;
 
   function h(tag, attrs, ...kids) {
     const e = document.createElement(tag);
@@ -2097,8 +2624,11 @@ button:disabled { opacity: .45; }
     els.takeOut = btn('', () => app.takeOut(), { 'data-t': 'takeout' });
     els.cranePlay = btn('', () => app.cranePlay(), { 'data-t': 'craneplay' });
     els.craneStock = btn(`${S().furniture.bigBear.emoji} ならべる`, () => app.craneStock(), { 'data-t': 'cranestock' });
-    els.actions.append(els.talk, els.buy, els.toGo, els.work, els.eat, els.petShop, els.pat, els.feed, els.follow,
-      els.furnShop, els.furnAct, els.stash, els.takeOut, els.cranePlay, els.craneStock);
+    els.giveFig = btn('🎁 あげる', () => openGive(), { 'data-t': 'give-fig' });
+    els.gachaSpin = btn(`${CAPSULE} まわす`, () => app.gachaOpen(), { 'data-t': 'gachaspin' });
+    els.decorate = btn('🖼️ かざる', () => openDecorate(), { 'data-t': 'decorate' });
+    els.actions.append(els.talk, els.giveFig, els.buy, els.toGo, els.work, els.eat, els.petShop, els.pat, els.feed, els.follow,
+      els.furnShop, els.furnAct, els.stash, els.takeOut, els.cranePlay, els.craneStock, els.gachaSpin, els.decorate);
     root.append(els.actions);
 
     els.palette = h('div', { class: 'palette' });
@@ -2108,6 +2638,7 @@ button:disabled { opacity: .45; }
     buildJob();
     buildCrane();
     buildStock();
+    buildGacha();
     els.toast = h('div', { class: 'toast', style: 'display:none' });
     root.append(els.toast);
     root.append(h('div', { class: 'rotate' }, 'スマホを よこに してね 📱↻'));
@@ -2126,6 +2657,20 @@ button:disabled { opacity: .45; }
       els.palette.append(els.craneTool);
       last.craneAfford = undefined;
       els.palette.append(btn(`${S().furniture.chair.emoji}<small>かぐ</small>`, () => openFurnitureTab(), { 'data-t': 'furntab' }));
+      els.palette.append(btn(`${CAPSULE}<small>ガシャ</small>`, () => { tab = 'gacha'; buildPalette(); }, { 'data-t': 'gachatab' }));
+    } else if (tab === 'gacha') {
+      els.palette.append(btn('↩️<small>もどる</small>', () => { tab = 'parts'; buildPalette(); }, { 'data-t': 'partstab' }));
+      // ガシャ台は建てるのにお金がかかる（足りないときは薄く）
+      els.gachaTools = G.config.gachaSeries.map(g => {
+        const sp = S()[g.machine];
+        const b = btn(`<span class="swatch" style="background:${sp.color}">${sp.emoji}</span><small>${g.label}</small><small>${S().coin.emoji}${G.config.gachaCost}</small>`,
+          () => { app.tool = g.machine; }, { 'data-tool': g.machine });
+        els.palette.append(b);
+        return b;
+      });
+      last.gachaAfford = undefined;
+      const sh = S().figureShelf;
+      els.palette.append(toolBtn('figureShelf', `<span class="swatch" style="background:${sh.color}">🖼️</span>`, 'かざりだな'));
     } else {
       els.palette.append(btn('↩️<small>もどる</small>', () => { tab = 'parts'; buildPalette(); }, { 'data-t': 'partstab' }));
       for (const k of G.config.furnitureKinds)
@@ -2249,6 +2794,121 @@ button:disabled { opacity: .45; }
     });
   }
 
+  // ガシャの画面: 台の絵 → ぐるっ → カプセル（タップで開く）→ 出たもの
+  function buildGacha() {
+    els.gTitle = h('div', { class: 'title' });
+    els.gCount = h('div', { class: 'meter', 'data-t': 'gachacount' });
+    els.gMachine = h('div', { class: 'gmachine' }, h('div', { class: 'gglass' }, h('i'), h('i'), h('i'), h('i'), h('i')),
+      h('div', { class: 'ghandle' }, '⚙️'));
+    els.gCapsule = btn('<span class="capsule big"></span>', () => app.gachaCrack(), { class: 'gcap', 'data-t': 'gachacap' });
+    els.gResult = h('div', { class: 'gresult', 'data-t': 'gacharesult' });
+    els.gMsg = h('div', { class: 'gmsg' });
+    const field = h('div', { class: 'gfield' }, els.gMachine, h('div', { class: 'gout' }, els.gMsg, els.gCapsule, els.gResult));
+    els.gTurn = btn('', () => app.gachaTurn(), { class: 'go', 'data-t': 'gachaturn' });
+    els.gClose = btn('とじる', () => app.gachaClose(), { class: 'end', 'data-t': 'gachaclose' });
+    els.gacha = h('div', { class: 'gacha', style: 'display:none' },
+      h('div', { class: 'ctop' }, els.gTitle, els.gCount), field, h('div', { class: 'controls' }, els.gTurn, els.gClose));
+    root.append(els.gacha);
+  }
+
+  function updateGacha(s) {
+    const gp = s.gachaPlay, series = G.gacha.seriesAt(s, gp.key);
+    if (!series) return;
+    const g = G.gachaLogic.seriesInfo(series), sp = S()[g.machine];
+    set('gtitle', series, () => {
+      els.gTitle.innerHTML = `${sp.emoji} ${g.label}`;
+      els.gMachine.style.background = sp.color;
+      els.gMachine.style.borderColor = sp.line;
+    });
+    const figs = G.gachaLogic.seriesFigures(series), have = figs.filter(id => G.figures.count(s, id)).length;
+    set('gcount', `${have}/${figs.length}`, v => { els.gCount.textContent = `あつめた ${v}${G.figures.count(s, g.trophy) ? ' 🏆' : ''}`; });
+    set('gphase', gp.phase + (gp.result ? gp.result.id : ''), () => {
+      els.gMachine.classList.toggle('turning', gp.phase === 'turning');
+      show(els.gCapsule, gp.phase === 'capsule');
+      show(els.gResult, gp.phase === 'open');
+      if (gp.phase === 'open') {
+        const r = gp.result;
+        els.gResult.innerHTML = `<span class="fig">${figEmoji(r.id)}</span><b>${figLabel(r.id)}</b>` +
+          (r.isNew ? `<em>${S().newMark}</em>` : '<small>あげられるよ</small>');
+      }
+      const msg = { ready: 'ぐるっ と まわしてね', turning: 'がちゃ がちゃ…', capsule: 'カプセルを タップ！', open: '' }[gp.phase];
+      els.gMsg.textContent = msg;
+      els.gTurn.innerHTML = `${gp.phase === 'open' ? 'もういっかい' : 'ぐるっ'}（${G.config.gachaPlayPrice}${S().coin.emoji}）`;
+      show(els.gTurn, gp.phase === 'ready' || gp.phase === 'open');
+    });
+    set('gafford', s.player.money >= G.config.gachaPlayPrice, v => els.gTurn.classList.toggle('dim', !v));
+  }
+
+  // フィギュアのボタン（台座つき）
+  function figBtn(id, extra, fn, attrs = {}) {
+    const trophy = G.gachaLogic.kindOf(id).trophy;
+    return btn(`<span class="fig${trophy ? ' gold' : ''}">${figEmoji(id)}</span>${extra}`, fn, Object.assign({ 'data-fig': id }, attrs));
+  }
+
+  // かざる画面: 上にたなの3つの場所、下に持っているフィギュア（シリーズごと）
+  function openDecorate() {
+    const s = app.s, k = G.figures.nearShelf(s);
+    if (!k) return;
+    const sh = G.figures.shelfAt(s, k);
+    let cur = Math.max(0, sh.indexOf(null));
+    const row = h('div', { class: 'srow' });
+    const cells = sh.map((_, i) => { const c = btn('', () => { cur = i; refresh(); }, { class: 'scell', 'data-cell': i }); row.append(c); return c; });
+    const list = h('div', { class: 'figlist' });
+    let any = false;
+    for (const g of G.config.gachaSeries) {
+      const ids = G.config.figureKinds.filter(f => f.series === g.id && G.figures.count(s, f.id)).map(f => f.id);
+      if (!ids.length) continue;
+      any = true;
+      const line = h('div', { class: 'figrow' });
+      for (const id of ids) line.append(figBtn(id, '', () => {
+        app.decorate(k, cur, id);
+        const next = sh.indexOf(null, cur + 1);
+        cur = next >= 0 ? next : (sh.indexOf(null) >= 0 ? sh.indexOf(null) : cur);
+        refresh();
+      }));
+      list.append(line);
+    }
+    if (!any) list.append(h('div', { class: 'note' }, 'ガシャを まわすと かざれるよ'));
+    const refresh = () => sh.forEach((id, i) => {
+      cells[i].innerHTML = id ? `<span class="fig${G.gachaLogic.kindOf(id).trophy ? ' gold' : ''}">${figEmoji(id)}</span>` : '';
+      cells[i].classList.toggle('now', i === cur);
+    });
+    const { close } = modal(h('div', { class: 'title' }, '🖼️ かざりだな'), row, list,
+      h('div', { class: 'names' }, btn('はずす', () => { app.decorate(k, cur, null); refresh(); }, { 'data-t': 'unset' }),
+        btn('とじる', () => close(), { 'data-t': 'closedecorate' })));
+    refresh();
+  }
+
+  // あげる画面: 2体目からのフィギュア
+  function openGive() {
+    const r = G.residents.near(app.s);
+    if (!r) return;
+    const list = h('div', { class: 'figrow wrap' });
+    for (const id of G.figures.giftable(app.s))
+      list.append(figBtn(id, `<small>×${G.figures.count(app.s, id) - 1}</small>`, () => { close(); app.give(r, id); }));
+    const { close } = modal(h('div', { class: 'title' }, `${r.look} ${r.name}に なにを あげる？`), list,
+      btn('やめる', () => close(), { 'data-t': 'closegive' }));
+  }
+
+  // ずかん: シリーズごとに1行。持っていないものは「？」
+  function openZukan() {
+    const s = app.s, rows = [];
+    for (const g of G.config.gachaSeries) {
+      const figs = G.gachaLogic.seriesFigures(g.id), have = figs.filter(id => G.figures.count(s, id)).length;
+      const line = h('div', { class: 'figrow' });
+      for (const id of figs) {
+        const n = G.figures.count(s, id);
+        line.append(h('div', { class: 'zcell' + (n ? '' : ' unknown'), 'data-zukan': id },
+          ...(n ? [h('span', { class: 'fig' }, figEmoji(id)), h('small', {}, figLabel(id))] : [h('span', { class: 'fig' }, '？'), h('small', {}, '　')]),
+          ...(n >= 2 ? [h('b', { class: 'badge' }, `×${n}`)] : [])));
+      }
+      rows.push(h('div', { class: 'zhead' }, `${S()[g.machine].emoji} ${g.label}　${have}/${figs.length}`,
+        h('span', { class: G.figures.count(s, g.trophy) ? '' : 'dim' }, '🏆')), line);
+    }
+    const { close } = modal(h('div', { class: 'title' }, '📖 ずかん'), h('div', { class: 'zukan' }, ...rows),
+      btn('とじる', () => close(), { 'data-t': 'closezukan' }));
+  }
+
   function stackHTML(list) {
     const J = S().ingredients;
     return list.map(id => `<span style="background:${J[id].color}">${J[id].emoji}</span>`).join('');
@@ -2283,9 +2943,11 @@ button:disabled { opacity: .45; }
       show(els.job, m === 'job');
       show(els.crane, m === 'crane');
       show(els.stock, m === 'stock');
+      show(els.gacha, m === 'gacha');
       show(els.actions, m === 'walk');
     });
     if (els.craneTool) set('craneAfford', p.money >= G.config.craneCost, v => els.craneTool.classList.toggle('dim', !v));
+    if (tab === 'gacha' && els.gachaTools) set('gachaAfford', p.money >= G.config.gachaCost, v => els.gachaTools.forEach(b => b.classList.toggle('dim', !v)));
     set('tool', app.tool, t => {
       for (const b of els.palette.children) b.classList.toggle('on', b.dataset.tool === t);
     });
@@ -2317,10 +2979,16 @@ button:disabled { opacity: .45; }
       const sb = ck ? G.crane.stockBlock(s, ck) : 'full';
       set('craneStock', sb !== 'full', v => show(els.craneStock, v));
       set('craneStockDim', sb === 'busy', v => els.craneStock.classList.toggle('dim', v));
+      set('giveFig', !!near && G.figures.giftable(s).length > 0, v => show(els.giveFig, v));
+      const gk = G.gacha.near(s);
+      set('gachaNear', !!gk, v => show(els.gachaSpin, v));
+      set('gachaDim', gk ? !!G.gacha.openBlock(s, gk) : false, v => els.gachaSpin.classList.toggle('dim', v));
+      set('shelfNear', !!G.figures.nearShelf(s), v => show(els.decorate, v));
     }
 
     if (mode === 'crane' && s.cranePlay && s.cranePlay.mode === 'play') updateCrane(s);
     if (mode === 'stock' && s.cranePlay && s.cranePlay.mode === 'stock') updateStock(s);
+    if (mode === 'gacha' && s.gachaPlay) updateGacha(s);
 
     if (mode === 'job') {
       const j = s.job, cust = s.residents.find(r => r.id === j.customerId);
@@ -2361,6 +3029,7 @@ button:disabled { opacity: .45; }
       ? [btn(app.isFullscreen() ? '⛶ ぜんがめんを やめる' : '⛶ ぜんがめんに する', () => { close(); app.toggleFullscreen(); }, { 'data-t': 'fullscreen' })]
       : [];
     const { close } = modal(...fs,
+      btn('📖 ずかん', () => { close(); openZukan(); }, { 'data-t': 'zukan' }),
       btn('💾 セーブを ファイルに かきだす', () => { close(); app.exportSave(); }),
       btn('📂 ファイルから よみこむ', () => file.click()),
       btn('とじる', () => close()), file);
@@ -2475,14 +3144,17 @@ button:disabled { opacity: .45; }
   app.onTap = (t) => {
     if (app.mode !== 'build') return;
     const s = app.s;
+    const gacha = G.gachaLogic.isMachine(app.tool);
     const res = app.tool === 'erase' ? G.world.erase(s.world, t.x, t.y)
       : app.tool === 'crane' ? G.crane.build(s, t.x, t.y)
-        : G.world.place(s.world, t.x, t.y, app.tool, G.state.occupied(s));
+        : gacha ? G.gacha.build(s, t.x, t.y, app.tool)
+          : G.world.place(s.world, t.x, t.y, app.tool, G.state.occupied(s));
     if (!res.ok && MSG[res.why]) G.ui.toast(MSG[res.why]);
     if (app.tool === 'crane' && res.ok && !res.same) G.ui.pop(`-${G.config.craneCost} ${coin()}`);
+    if (gacha && res.ok && !res.same) G.ui.pop(`-${G.config.gachaCost} ${coin()}`);
     // 台を消した・上書きしたら、建てたお金がもどる
-    const refund = G.crane.reconcile(s);
-    if (refund) G.ui.pop(`+${refund} ${coin()}`);
+    const refund = G.crane.reconcile(s) + G.gacha.reconcile(s) + (res.refund || 0);
+    if (refund) setTimeout(() => G.ui.pop(`+${refund} ${coin()}`), res.ok && !res.same && (gacha || app.tool === 'crane') ? 500 : 0);
   };
 
   app.talk = () => {
@@ -2620,9 +3292,42 @@ button:disabled { opacity: .45; }
   };
   app.stockQuit = () => { G.crane.cancelStock(app.s); setMode('walk'); };
 
-  // 動きの中で起きたことを知らせる（クレーンの結果・ペットのなかよし）
+  // ガシャポン
+  const figLabel = (id) => G.gachaLogic.kindOf(id).label;
+  app.gachaOpen = () => {
+    const k = G.gacha.near(app.s);
+    if (!k) return;
+    const res = G.gacha.open(app.s, k);
+    if (!res.ok) {
+      if (res.why === 'busy') { const r = G.gacha.playerOf(app.s, k); G.ui.toast(`${r ? r.name : 'だれか'}が まわしてるよ。まってね`); }
+      return;
+    }
+    setMode('gacha');
+  };
+  app.gachaTurn = () => {
+    const res = G.gacha.turn(app.s);
+    if (!res.ok && MSG[res.why]) G.ui.toast(MSG[res.why]);
+  };
+  // 出たものを知らせる
+  function gachaResult(r) {
+    if (!r) return;
+    G.ui.toast(r.isNew ? `${figLabel(r.id)}が でた！` : `${figLabel(r.id)}が でた！ あげられるよ`, 3000);
+    if (r.trophy) setTimeout(() => G.ui.toast(`そろった！ ${figLabel(r.trophy)}が もらえたよ！`, 3500), 1500);
+  }
+  app.gachaCrack = () => gachaResult(G.gacha.crack(app.s));
+  app.gachaClose = () => { gachaResult(G.gacha.close(app.s)); setMode('walk'); };
+  app.decorate = (k, i, id) => G.figures.setSlot(app.s, k, i, id);
+  app.give = (r, id) => {
+    const res = G.figures.give(app.s, r, id);
+    if (!res.ok) return;
+    G.ui.toast(`${r.look} ${r.name}「わあ、${figLabel(id)}！ ありがとう」`, 3000);
+    G.ui.pop(`+${res.reward} ${coin()}`);
+  };
+
+  // 動きの中で起きたことを知らせる（クレーンの結果・ペットのなかよし・カプセル）
   function notify(e) {
     if (e.type === 'love') celebrate(e.pet, e.res);
+    if (e.type === 'capsule') G.ui.pop(`+${e.reward} ${coin()}`);
     if (e.type !== 'crane') return;
     if (!e.caught) { G.ui.toast('あとちょっと！'); return; }
     const label = prizeLabel(e.id);
@@ -2657,6 +3362,7 @@ button:disabled { opacity: .45; }
     G.state.tick(s, dt);
     if (app.mode === 'job' && !s.job.active) setMode('walk'); // カウンターが消えたなど
     if ((app.mode === 'crane' || app.mode === 'stock') && !s.cranePlay) setMode('walk'); // 遊び終わった・台が消えた
+    if (app.mode === 'gacha' && !s.gachaPlay) setMode('walk'); // 台が消えた
     for (const e of G.state.drain()) notify(e);
     if (app.mode !== 'build') {
       app.cam.x += (s.player.x - app.cam.x) * Math.min(1, dt * 8);
