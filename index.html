@@ -2167,7 +2167,8 @@ button:disabled { opacity: .45; }
 // 壁をよける道さがし（4方向の幅優先）。計算だけで画面には関わらない
 (function (G) {
   // start: {x,y}、goals: key の Set。いちばん近いゴールまでの道（start を含まない）を返す。行けなければ null
-  function find(wd, start, goals) {
+  // inside（key の Set）を渡すと、その中のマスだけを歩く
+  function find(wd, start, goals, inside) {
     const W = G.world;
     const sk = W.key(start.x, start.y);
     if (goals.has(sk)) return [];
@@ -2177,7 +2178,7 @@ button:disabled { opacity: .45; }
       const cur = queue[qi];
       for (const [dx, dy] of W.DIRS) {
         const nx = cur.x + dx, ny = cur.y + dy, nk = W.key(nx, ny);
-        if (prev.has(nk) || !W.isPassable(wd, nx, ny)) continue;
+        if (prev.has(nk) || !W.isPassable(wd, nx, ny) || (inside && !inside.has(nk))) continue;
         prev.set(nk, cur);
         if (goals.has(nk)) {
           const path = [{ x: nx, y: ny }];
@@ -3513,6 +3514,7 @@ button:disabled { opacity: .45; }
 </script>
 <script>
 // ペット: ついてくる（follow）か、自分のベッドのまわりでうろうろ（idle と walking を行き来する）
+// うろうろするのは「おうち」の中だけ: ベッドからドアを通らずに行けて、ベッドから半径以内のマス
 // 閉じ込められたら自分のベッドのそばへぱっと戻る（エラーにしない）
 // おうちにいる子は、ときどきベッドの近くのおもちゃへ行って遊ぶ（toToy → toy）。遊ぶと なかよし +1
 // 同じ種類のフィギュア（かペットのトロフィー）を飾ったかざりだなも、同じように見に行く
@@ -3542,10 +3544,35 @@ button:disabled { opacity: .45; }
   // 読み込んだペット。知らない種類は取り除く
   function restore(list) { return list.filter(p => p && kindOf(p.kind)).map(reset); }
 
-  // 自分のベッドのとなりの行けるマス。なければベッドの上
+  const isDoor = (s, x, y) => { const o = W().objAt(s.world, x, y); return !!o && o.type === 'door'; };
+
+  // 自分のベッドのとなりの行けるマス（ドアでないほうを先に）。なければベッドの上
   function homeSpot(s) {
-    const b = C().ownBed;
-    return W().passableNeighbors(s.world, b.x, b.y)[0] || { x: b.x, y: b.y };
+    const b = C().ownBed, ns = W().passableNeighbors(s.world, b.x, b.y);
+    return ns.find(q => !isDoor(s, q.x, q.y)) || ns[0] || { x: b.x, y: b.y };
+  }
+
+  // おうちのマスの key の Set: ベッドのとなりから、ドアを通らずに歩いて行けて、ベッドから半径以内（まっすぐの距離）
+  // 家を建てていなければ、ベッドのまわりの半径以内がそのままおうち
+  function homeArea(s) {
+    const b = C().ownBed, R = C().petHomeRadius, area = new Set();
+    const ok = (q) => Math.hypot(q.x - b.x, q.y - b.y) <= R && !isDoor(s, q.x, q.y);
+    const queue = W().passableNeighbors(s.world, b.x, b.y).filter(ok);
+    for (const q of queue) area.add(W().key(q.x, q.y));
+    for (let i = 0; i < queue.length; i++) {
+      for (const q of W().passableNeighbors(s.world, queue[i].x, queue[i].y)) {
+        const k = W().key(q.x, q.y);
+        if (area.has(k) || !ok(q)) continue;
+        area.add(k); queue.push(q);
+      }
+    }
+    return area;
+  }
+
+  // おうちの中の goals までの道。おうちの中にいればおうちの中だけを歩く。外にいればまずおうちへ
+  function homePath(s, p, goals, area) {
+    const here = tileOf(p);
+    return P().find(s.world, here, goals, area.has(W().key(here.x, here.y)) ? area : undefined);
   }
 
   function warpHome(s, p) {
@@ -3592,23 +3619,22 @@ button:disabled { opacity: .45; }
     walk(s, p, speed, dt);
   }
 
-  // 自分のベッドのまわり（まっすぐの距離で半径以内）の行けるマスを選んで歩き、着いたら少し止まる
+  // おうちのマスを1つ選んで歩き、着いたら少し止まる。おうちの外にいたら、まずおうちへ戻る
   function homeStep(s, p, dt) {
-    const c = C(), b = c.ownBed;
+    const c = C();
     if (p.path.length) {
       if (walk(s, p, c.petSpeeds[kindOf(p.kind).move], dt) === 'moving') return;
       p.idleUntil = s.time + c.petIdleMin + (c.petIdleMax - c.petIdleMin) * G.rng();
       return;
     }
     if (s.time < p.idleUntil) return;
-    const here = tileOf(p), R = c.petHomeRadius, cands = [];
-    for (let y = b.y - R; y <= b.y + R; y++) for (let x = b.x - R; x <= b.x + R; x++)
-      if (Math.hypot(x - b.x, y - b.y) <= R && W().isPassable(s.world, x, y) && (x !== here.x || y !== here.y))
-        cands.push({ x, y });
-    const goal = cands[Math.floor(G.rng() * cands.length)];
-    const path = goal && P().find(s.world, here, new Set([W().key(goal.x, goal.y)]));
+    const here = tileOf(p), hk = W().key(here.x, here.y), area = homeArea(s);
+    const cands = area.has(hk) ? [...area].filter(k => k !== hk) : [...area];
+    if (!cands.length) { p.idleUntil = s.time + 1; return; } // おうちが1マスだけ・ないときはその場で
+    const goals = area.has(hk) ? new Set([cands[Math.floor(G.rng() * cands.length)]]) : area;
+    const path = homePath(s, p, goals, area);
     if (path) { p.path = path; return; }
-    if (Math.hypot(p.x - b.x, p.y - b.y) > R + 1) warpHome(s, p);
+    if (!area.has(hk)) warpHome(s, p); // おうちに戻れない
     p.idleUntil = s.time + 1;
   }
 
@@ -3652,13 +3678,14 @@ button:disabled { opacity: .45; }
     p.toyTimer -= dt;
     if (p.toyTimer > 0) return false;
     p.toyTimer = toyInterval();
-    const b = c.ownBed, R = c.petHomeRadius, toys = [];
+    // ベッドから半径以内のおもちゃ・かざりだなで、おうちの中から遊べるもの
+    const b = c.ownBed, R = c.petHomeRadius, area = homeArea(s), toys = [];
     for (let y = b.y - R; y <= b.y + R; y++) for (let x = b.x - R; x <= b.x + R; x++)
       if (Math.hypot(x - b.x, y - b.y) <= R && toyAt(s, W().key(x, y), p)) toys.push({ x, y });
     while (toys.length) {
       const t = toys.splice(Math.floor(G.rng() * toys.length), 1)[0];
-      const goals = new Set(W().passableNeighbors(s.world, t.x, t.y).map(q => W().key(q.x, q.y)));
-      const path = goals.size && P().find(s.world, tileOf(p), goals);
+      const goals = new Set(W().passableNeighbors(s.world, t.x, t.y).map(q => W().key(q.x, q.y)).filter(k => area.has(k)));
+      const path = goals.size && homePath(s, p, goals, area);
       if (!path) continue;
       Object.assign(p, { state: 'toToy', toyKey: W().key(t.x, t.y), path });
       return true;
@@ -3699,7 +3726,7 @@ button:disabled { opacity: .45; }
   // 自分のまわり1.5マス以内でいちばん近いペット
   function near(s) { return G.player.nearest(s.player, s.pets, 1.5); }
 
-  G.pets = { kindOf, create, restore, update, pat, feed, setFollow, near, homeSpot, toyAt };
+  G.pets = { kindOf, create, restore, update, pat, feed, setFollow, near, homeSpot, homeArea, toyAt };
 })(window.Game = window.Game || {});
 </script>
 <script>
