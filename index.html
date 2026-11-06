@@ -2110,8 +2110,8 @@ button:disabled { opacity: .45; }
   function canPlace(wd, x, y, kind, occupied) {
     if (!inBounds(wd, x, y)) return 'outside';
     const o = wd.obj[idx(wd, x, y)];
+    if (kind === 'floor') return null; // 床は上のものの下にしく（自分のベッドの下にも）
     if (o && o.own) return 'ownBed';
-    if (kind === 'floor') return null;
     if (OBJECTS.indexOf(kind) < 0) return 'unknown';
     if (BLOCKING[kind] && occupied && occupied.has(key(x, y))) return 'occupied';
     return null;
@@ -2126,11 +2126,12 @@ button:disabled { opacity: .45; }
     return { ok: true, removed: prev };
   }
 
-  // 上のものがあればそれを、なければ床を消す。自分のベッドは消せない
+  // 上のものがあればそれを、なければ床を消す。自分のベッドは消せない（下の床だけ消える）
   function erase(wd, x, y) {
     if (!inBounds(wd, x, y)) return { ok: false, why: 'outside' };
     const i = idx(wd, x, y), o = wd.obj[i];
-    if (o && o.own) return { ok: false, why: 'ownBed' };
+    if (o && o.own && !wd.floor[i]) return { ok: false, why: 'ownBed' };
+    if (o && o.own) { wd.floor[i] = 0; return { ok: true, removed: { type: 'floor' } }; }
     if (o) { wd.obj[i] = null; return { ok: true, removed: o }; }
     if (wd.floor[i]) { wd.floor[i] = 0; return { ok: true, removed: { type: 'floor' } }; }
     return { ok: false, why: 'empty' };
