@@ -5,192 +5,163 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
-<meta name="theme-color" content="#5d8a2f">
+<meta name="theme-color" content="#165a4c">
 <title>けんちくけいゲーム</title>
 <style>
-html, body { margin: 0; height: 100%; overflow: hidden; background: #5d8a2f;
-  font-family: "Hiragino Maru Gothic ProN", "Rounded Mplus 1c", "Noto Sans JP", sans-serif;
+/* 大きさはすべて「ドットの数 × var(--dot)」。--dot と色（--c-*）は art.js が書く（ドット絵の設計書 4節） */
+:root { --dot: 3px; --c-ink: #2e222f; --c-paper: #fff; --c-shade: #c7dcd0; --c-bg: #165a4c; --c-panel: #fdcbb0;
+  --c-accent: #f9c22b; --c-accentDark: #f79617; --c-good: #1ebc73; --c-bad: #e83b3b; --c-sky: #8fd3ff; --c-pink: #eaaded;
+  --c-glass: #8ff8e2; --c-rope: #625565; --c-rotate: #239063; --c-dim: #9babb2;
+  --cut: polygon(var(--dot) 0, calc(100% - var(--dot)) 0, 100% var(--dot), 100% calc(100% - var(--dot)),
+    calc(100% - var(--dot)) 100%, var(--dot) 100%, 0 calc(100% - var(--dot)), 0 var(--dot)); }
+html, body { margin: 0; height: 100%; overflow: hidden; background: var(--c-bg);
   -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; touch-action: none; }
-canvas { display: block; position: fixed; inset: 0; }
-#ui { position: fixed; inset: 0; pointer-events: none; }
+canvas#screen { display: block; position: fixed; left: 0; top: 0; image-rendering: pixelated; } /* 大きさは render.js が 1 ドット＝k 画素に合わせて書き換える */
+.art { image-rendering: pixelated; display: inline-block; vertical-align: middle; flex-shrink: 0; }
+#ui { position: fixed; inset: 0; pointer-events: none; line-height: 0; }
 #ui > * { pointer-events: auto; }
-#ui > .pop, #ui > .toast { pointer-events: none; } /* 浮かぶ表示はタップを取らない */
-button { font: inherit; border: none; border-radius: 14px; background: #fff; color: #333;
-  box-shadow: 0 3px 0 #0003; padding: 8px 14px; font-size: 18px; cursor: pointer; touch-action: manipulation; }
-button:active { transform: translateY(2px); box-shadow: 0 1px 0 #0003; }
-button:disabled { opacity: .45; }
+#ui > .pop, #ui > .toast, #ui > .palettebox, #ui > .hud { pointer-events: none; } /* 浮かぶ表示と、並べるだけの入れ物はタップを取らない */
+.dim { opacity: .45; }
 
-.hud { position: absolute; top: max(8px, env(safe-area-inset-top)); left: max(8px, env(safe-area-inset-left));
-  right: max(8px, env(safe-area-inset-right)); display: flex; gap: 10px; align-items: center; pointer-events: none; }
+/* ドットの箱: 角を1ドット欠き、1ドットの濃い枠。ボタンは下に1ドットの影があり、押すと1ドット沈む */
+button, .panel, .pill { clip-path: var(--cut); box-shadow: inset 0 0 0 var(--dot) var(--c-ink); }
+button { font: inherit; border: none; margin: 0; background: var(--c-paper); cursor: pointer; touch-action: manipulation;
+  display: inline-flex; align-items: center; justify-content: center; gap: calc(2 * var(--dot));
+  padding: calc(3 * var(--dot)) calc(4 * var(--dot)) calc(4 * var(--dot));
+  box-shadow: inset 0 0 0 var(--dot) var(--c-ink), inset 0 calc(-2 * var(--dot)) 0 0 var(--c-shade); }
+button:active:not(:disabled) { padding-top: calc(4 * var(--dot)); padding-bottom: calc(3 * var(--dot));
+  box-shadow: inset 0 0 0 var(--dot) var(--c-ink); }
+button:disabled { opacity: .45; }
+.panel { background: var(--c-panel); }
+.pill { background: var(--c-paper); padding: calc(2 * var(--dot)) calc(3 * var(--dot)); display: inline-flex; align-items: center;
+  gap: calc(2 * var(--dot)); }
+
+.hud { position: absolute; top: max(calc(2 * var(--dot)), env(safe-area-inset-top)); left: max(calc(2 * var(--dot)), env(safe-area-inset-left));
+  right: max(calc(2 * var(--dot)), env(safe-area-inset-right)); display: flex; gap: calc(2 * var(--dot)); align-items: center; pointer-events: none; }
 .hud > * { pointer-events: auto; }
-.pill { background: #fffe; border-radius: 14px; padding: 6px 12px; font-size: 20px; box-shadow: 0 2px 0 #0002; }
-.hunger { display: flex; align-items: center; gap: 6px; }
-.bar { width: 110px; height: 14px; background: #ddd; border-radius: 7px; overflow: hidden; }
-.bar > i { display: block; height: 100%; background: #ff9800; transition: width .3s; }
-.bar.empty > i { background: #e53935; }
+.bar { width: calc(36 * var(--dot)); height: calc(5 * var(--dot)); background: var(--c-shade);
+  box-shadow: inset 0 0 0 var(--dot) var(--c-ink); padding: var(--dot); box-sizing: border-box; }
+.bar > i { display: block; height: 100%; background: var(--c-accentDark); }
+.bar.empty > i { background: var(--c-bad); }
 .spacer { flex: 1; }
 
-.actions { position: absolute; right: max(12px, env(safe-area-inset-right)); bottom: 16px;
-  display: flex; flex-direction: column; flex-wrap: wrap-reverse; gap: 10px; align-items: flex-end;
-  align-content: flex-start; max-height: calc(100% - 90px); }
-.actions button { font-size: 22px; padding: 12px 18px; }
+.actions { position: absolute; right: max(calc(3 * var(--dot)), env(safe-area-inset-right)); bottom: calc(3 * var(--dot));
+  display: flex; flex-direction: column; flex-wrap: wrap-reverse; gap: calc(2 * var(--dot)); align-items: flex-end;
+  align-content: flex-start; max-height: calc(100% - 30 * var(--dot)); }
 
-.toast { position: absolute; top: 64px; left: 50%; transform: translateX(-50%); background: #fffe;
-  padding: 10px 18px; border-radius: 16px; font-size: 20px; box-shadow: 0 3px 0 #0003; white-space: nowrap;
-  pointer-events: none; }
+.toast { position: absolute; top: calc(20 * var(--dot)); left: 50%; transform: translateX(-50%); background: var(--c-paper);
+  padding: calc(3 * var(--dot)) calc(4 * var(--dot)); }
 
-.palette { position: absolute; left: 50%; transform: translateX(-50%); bottom: 10px; display: flex; gap: 8px;
-  background: #fffc; padding: 8px; border-radius: 18px; box-sizing: border-box; max-width: calc(100% - 16px);
-  overflow-x: auto; touch-action: pan-x; }
-.palette button { flex-shrink: 0; }
-.palette button { display: flex; flex-direction: column; align-items: center; font-size: 24px; padding: 6px 6px; min-width: 54px; }
-.palette button small { font-size: 12px; white-space: nowrap; }
-.palette button.on { background: #ffe082; outline: 3px solid #ff9800; }
-.swatch { width: 28px; height: 28px; border-radius: 6px; display: inline-block; }
+/* つくるパレット: アイコンだけ。選んでいるものの名前は上の行 */
+.palettebox { position: absolute; left: 50%; transform: translateX(-50%); bottom: calc(2 * var(--dot)); max-width: calc(100% - 4 * var(--dot));
+  display: flex; flex-direction: column; align-items: center; gap: var(--dot); }
+.palettebox > * { pointer-events: auto; }
+.palette { display: flex; gap: var(--dot); background: var(--c-panel); padding: calc(2 * var(--dot)); box-sizing: border-box; max-width: 100%;
+  overflow-x: auto; touch-action: pan-x; clip-path: var(--cut); box-shadow: inset 0 0 0 var(--dot) var(--c-ink); scrollbar-width: none; }
+.palette button { flex-shrink: 0; padding: calc(2 * var(--dot)) calc(2 * var(--dot)) calc(3 * var(--dot)); }
+.palette button:active:not(:disabled) { padding-top: calc(3 * var(--dot)); padding-bottom: calc(2 * var(--dot)); }
+.palette button.on { background: var(--c-accent); }
 
-.job { position: absolute; inset: 8px; background: #fff8e1; border-radius: 22px; display: grid;
-  grid-template-columns: 1fr 1fr; grid-template-rows: 1fr auto; gap: 8px; padding: 12px; box-sizing: border-box; }
-.job .col { display: flex; flex-direction: column; align-items: center; justify-content: safe flex-end; gap: 4px;
+/* アルバイト */
+.job { position: absolute; inset: calc(2 * var(--dot)); display: grid;
+  grid-template-columns: 1fr 1fr; grid-template-rows: 1fr auto; gap: calc(2 * var(--dot)); padding: calc(4 * var(--dot)); box-sizing: border-box; }
+.job .col { display: flex; flex-direction: column; align-items: center; justify-content: safe flex-end; gap: var(--dot);
   min-height: 0; overflow: hidden auto; }
-.job .title { font-size: 18px; margin-bottom: auto; }
-.job .customer { font-size: clamp(26px, 10vh, 44px); line-height: 1.1; }
-.stack { display: flex; flex-direction: column-reverse; align-items: center; }
-.stack span { width: min(110px, 100%); height: clamp(15px, 6vh, 26px); border-radius: 10px; margin-top: -2px;
-  display: flex; align-items: center; justify-content: center; font-size: clamp(12px, 5vh, 22px); box-shadow: inset 0 -3px 0 #0002; }
-.job .stack { width: 110px; flex-shrink: 0; }
-.job .wait { font-size: 20px; color: #666; text-align: center; margin: auto; }
-.job .controls { grid-column: 1 / 3; display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
-.job .controls button { font-size: 24px; padding: 10px 14px; }
-.job .controls .give { background: #66bb6a; color: #fff; }
-.job .controls .end { background: #eee; }
-@media (max-height: 340px) {
-  .job { inset: 4px; padding: 8px; gap: 4px; }
-  .job .title { font-size: 15px; }
-  .job .controls button { font-size: 20px; padding: 6px 10px; }
-}
-.pop { position: absolute; left: 50%; top: 40%; transform: translate(-50%, -50%); font-size: 48px; font-weight: bold;
-  color: #fff; text-shadow: 0 0 6px #e65100, 0 2px 0 #e65100; white-space: nowrap;
-  animation: pop 1s ease-out forwards; pointer-events: none; }
-@keyframes pop { from { opacity: 1; transform: translate(-50%, -50%) scale(.6); }
-  to { opacity: 0; transform: translate(-50%, -130%) scale(1.2); } }
+.job .title { margin-bottom: auto; }
+.orderrow { display: flex; align-items: flex-end; gap: calc(4 * var(--dot)); min-height: 0; }
+.job .customer { display: flex; flex-direction: column; align-items: center; gap: var(--dot); }
+.stack { display: flex; flex-direction: column-reverse; align-items: center; flex-shrink: 0; }
+.stack > .art + .art { margin-bottom: calc(-2 * var(--dot)); } /* 段の枠を重ねる */
+.stack.apart { gap: calc(4 * var(--dot)); }
+.stack.apart > .art + .art { margin-bottom: 0; } /* 注文: 具材ごとに離す */
+.job .wait { margin: auto; text-align: center; }
+.job .controls { grid-column: 1 / 3; display: flex; gap: calc(2 * var(--dot)); justify-content: center; flex-wrap: wrap; }
+.job .controls .give { background: var(--c-good); }
 
-.modal { position: absolute; inset: 0; background: #0006; display: flex; align-items: center; justify-content: center; }
-.modal .box { background: #fff; border-radius: 18px; padding: 18px; display: flex; flex-direction: column; gap: 10px; min-width: 260px; }
+/* 浮かぶ表示 */
+.pop { position: absolute; left: 50%; top: 40%; transform: translate(-50%, -50%); white-space: nowrap;
+  animation: pop 1s steps(8) forwards; pointer-events: none; }
+@keyframes pop { from { opacity: 1; transform: translate(-50%, -50%); } to { opacity: 0; transform: translate(-50%, -150%); } }
 
-.modal .title { font-size: 20px; text-align: center; }
-.shelf { display: grid; grid-template-columns: repeat(5, auto); gap: 8px; }
-.shelf button { display: flex; flex-direction: column; align-items: center; font-size: 34px; padding: 6px 10px; min-width: 76px; }
-.shelf button small { font-size: 14px; }
-.names { display: flex; gap: 10px; }
-.names button { font-size: 22px; padding: 12px 16px; }
+.modal { position: absolute; inset: 0; background: #2e222f88; display: flex; align-items: center; justify-content: center; }
+.modal .box { overflow: hidden; padding: calc(4 * var(--dot)); display: flex; flex-direction: column; align-items: center; gap: calc(3 * var(--dot));
+  max-height: calc(100% - 8 * var(--dot)); max-width: calc(100% - 8 * var(--dot)); box-sizing: border-box; }
+.modal .box > button { align-self: stretch; }
+.title { display: flex; align-items: center; justify-content: center; gap: calc(2 * var(--dot)); }
+.shead { align-self: stretch; display: flex; align-items: center; justify-content: space-between; gap: calc(4 * var(--dot)); }
+.shelf { display: grid; grid-template-columns: repeat(5, auto); gap: calc(2 * var(--dot)); overflow-y: auto; min-height: 0; touch-action: pan-y; }
+.shelf button { flex-direction: column; gap: var(--dot); }
+.shelf button { padding: calc(2 * var(--dot)) calc(2 * var(--dot)) calc(3 * var(--dot)); }
+.shelf button:active:not(:disabled) { padding-top: calc(3 * var(--dot)); padding-bottom: calc(2 * var(--dot)); }
+.shelf .pic { height: calc(16 * var(--dot)); display: flex; align-items: flex-end; justify-content: center; }
+.shelf .pic.tall { height: calc(24 * var(--dot)); }
+.names { display: flex; gap: calc(2 * var(--dot)); }
 
-.rotate { position: absolute; inset: 0; background: #5d8a2f; color: #fff; display: none;
-  align-items: center; justify-content: center; font-size: 28px; text-align: center; }
+.rotate { position: absolute; inset: 0; background: var(--c-rotate); display: none; flex-direction: column;
+  align-items: center; justify-content: center; gap: calc(6 * var(--dot)); }
+.rotpics { display: flex; align-items: center; gap: calc(4 * var(--dot)); }
 @media (orientation: portrait) and (pointer: coarse) { .rotate { display: flex; } }
 
-/* ゲームセンター */
-.dim { opacity: .45; }
-.palette button.dim { opacity: .45; }
-.crane, .stock { position: absolute; inset: 8px; background: #fce4ec; border-radius: 22px; display: flex;
-  flex-direction: column; gap: 8px; padding: 12px; box-sizing: border-box; }
-.crane .ctop { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-.crane .title, .stock .title { font-size: 18px; }
-.crane .meter { font-size: 18px; background: #fff; border-radius: 12px; padding: 2px 10px; }
-.crane .meter:empty { display: none; }
-.cfield { position: relative; flex: 1; min-height: 0; background: #e1f5fe; border: 4px solid #f48fb1;
-  border-radius: 16px; overflow: hidden; }
-.cslots { position: absolute; left: 0; right: 0; bottom: 6px; display: grid; grid-template-columns: repeat(6, 1fr);
-  align-items: end; }
-.cslots > div { text-align: center; font-size: clamp(24px, 11vh, 48px); line-height: 1.1; }
-.chute { background: #f8bbd0; border-radius: 10px; margin: 0 6px; font-size: 20px !important; padding: 6px 0; }
+/* クレーンゲーム・ならべる */
+.crane, .stock { position: absolute; inset: calc(2 * var(--dot)); display: flex; background: var(--c-pink);
+  flex-direction: column; gap: calc(2 * var(--dot)); padding: calc(4 * var(--dot)); box-sizing: border-box; }
+.ctop { display: flex; align-items: center; justify-content: space-between; gap: calc(2 * var(--dot)); }
+.meter:empty { display: none; }
+.cfield { position: relative; flex: 1; min-height: 0; background: var(--c-glass); clip-path: var(--cut);
+  box-shadow: inset 0 0 0 var(--dot) var(--c-ink); overflow: hidden; }
+.cslots { position: absolute; left: 0; right: 0; bottom: calc(2 * var(--dot)); display: grid; grid-template-columns: repeat(6, 1fr);
+  align-items: end; justify-items: center; }
+.chute { background: var(--c-shade); padding: calc(2 * var(--dot)); clip-path: var(--cut); }
+.chute .art { transform: rotate(90deg); }
 .arm { position: absolute; top: 0; height: 100%; width: 0; display: flex; flex-direction: column; align-items: center; }
-.arm .rope { width: 4px; background: #757575; flex-shrink: 0; }
-.arm .claw { font-size: clamp(22px, 9vh, 40px); line-height: 1; transform: translateX(0); white-space: nowrap;
-  display: flex; flex-direction: column; align-items: center; }
-.arm .claw span { font-size: .8em; margin-top: -4px; }
-.cmsg { position: absolute; top: 8px; left: 50%; transform: translateX(-50%); font-size: 20px; color: #ad1457;
-  white-space: nowrap; font-weight: bold; }
-.crane .controls, .stock .controls { display: flex; gap: 12px; justify-content: center; }
-.crane .go { font-size: 34px; padding: 8px 40px; background: #ffd54f; touch-action: none; }
-.crane .end, .stock .end { background: #eee; font-size: 22px; padding: 10px 16px; }
+.arm .rope { width: calc(2 * var(--dot)); background: var(--c-rope); flex-shrink: 0; }
+.arm .claw { display: flex; flex-direction: column; align-items: center; }
+.arm .claw .art + .art { margin-top: calc(-4 * var(--dot)); }
+.cmsg { position: absolute; top: calc(3 * var(--dot)); left: 50%; transform: translateX(-50%); white-space: nowrap; }
+.crane .controls, .stock .controls, .gacha .controls { display: flex; gap: calc(3 * var(--dot)); justify-content: center; }
+.go { background: var(--c-accent); padding-left: calc(12 * var(--dot)); padding-right: calc(12 * var(--dot)); }
+.crane .go { touch-action: none; }
 .stock { align-items: center; justify-content: space-between; }
-.srow { display: flex; gap: 10px; }
-.scell { width: clamp(44px, 16vh, 72px); height: clamp(44px, 16vh, 72px); background: #fff; border-radius: 14px;
-  display: flex; align-items: center; justify-content: center; font-size: clamp(26px, 10vh, 44px); }
-.scell.mihon { opacity: .35; outline: 2px dashed #f48fb1; }
-.scell.now { opacity: .55; outline: 4px solid #ff9800; background: #fff3e0; }
-.spick { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
-.spick button { font-size: 30px; padding: 6px 10px; }
-.shake { animation: shake .35s; }
-@keyframes shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-6px); } 75% { transform: translateX(6px); } }
-@media (max-height: 340px) {
-  .crane, .stock { inset: 4px; padding: 8px; gap: 4px; }
-  .spick button { font-size: 24px; padding: 4px 8px; }
-}
+.srow { display: flex; gap: calc(2 * var(--dot)); }
+.scell { width: calc(38 * var(--dot)); height: calc(38 * var(--dot)); background: var(--c-paper); clip-path: var(--cut);
+  box-shadow: inset 0 0 0 var(--dot) var(--c-ink); display: flex; align-items: center; justify-content: center; padding: 0; }
+.scell.mihon { opacity: .4; }
+.scell.now { background: var(--c-accent); }
+.scell.mihon.now { opacity: .7; }
+.spick { display: flex; gap: var(--dot); flex-wrap: wrap; justify-content: center; }
+.spick button { padding: calc(2 * var(--dot)) calc(2 * var(--dot)) calc(3 * var(--dot)); }
+.shake { animation: shake .35s steps(4); }
+@keyframes shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(calc(-2 * var(--dot))); } 75% { transform: translateX(calc(2 * var(--dot))); } }
 
 /* ガシャポン */
-.capsule { display: inline-block; width: 26px; height: 26px; border-radius: 50%; vertical-align: middle;
-  background: linear-gradient(#ef5350 50%, #fafafa 50%); box-shadow: inset 0 0 0 2px #9e9e9e; }
-.capsule.big { width: clamp(48px, 18vh, 80px); height: clamp(48px, 18vh, 80px); }
-.palette .swatch { display: flex; align-items: center; justify-content: center; font-size: 18px; }
-.gacha { position: absolute; inset: 8px; background: #e3f2fd; border-radius: 22px; display: flex;
-  flex-direction: column; gap: 8px; padding: 12px; box-sizing: border-box; }
-.gacha .ctop { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-.gacha .title { font-size: 18px; }
-.gacha .meter { font-size: 18px; background: #fff; border-radius: 12px; padding: 2px 10px; }
-.gfield { position: relative; flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; gap: 6%; }
-.gmachine { position: relative; height: 92%; aspect-ratio: 3 / 4; border: 4px solid #0277bd; border-radius: 18px;
-  display: flex; flex-direction: column; align-items: center; justify-content: space-evenly; box-sizing: border-box; }
-.gglass { position: relative; width: 74%; aspect-ratio: 1; border-radius: 50%; background: #fffc; overflow: hidden; }
-.gglass i { position: absolute; width: 26%; aspect-ratio: 1; border-radius: 50%; box-shadow: inset 0 0 0 2px #0002; }
-.gglass i:nth-child(1) { left: 14%; top: 52%; background: linear-gradient(#ef5350 50%, #fafafa 50%); }
-.gglass i:nth-child(2) { left: 44%; top: 60%; background: linear-gradient(#42a5f5 50%, #fafafa 50%); }
-.gglass i:nth-child(3) { left: 62%; top: 34%; background: linear-gradient(#ffca28 50%, #fafafa 50%); }
-.gglass i:nth-child(4) { left: 30%; top: 26%; background: linear-gradient(#66bb6a 50%, #fafafa 50%); }
-.gglass i:nth-child(5) { left: 58%; top: 8%; background: linear-gradient(#ab47bc 50%, #fafafa 50%); }
-.gmachine.turning .gglass i { animation: shake .3s infinite; }
-.ghandle { font-size: clamp(24px, 10vh, 44px); line-height: 1; }
-.gmachine.turning .ghandle { animation: spin .8s linear; }
-@keyframes spin { to { transform: rotate(360deg); } }
-.gout { width: 36%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; }
-.gmsg { font-size: 20px; color: #0277bd; font-weight: bold; white-space: nowrap; }
+.gacha { position: absolute; inset: calc(2 * var(--dot)); background: var(--c-sky); display: flex;
+  flex-direction: column; gap: calc(2 * var(--dot)); padding: calc(4 * var(--dot)); box-sizing: border-box; }
+.gfield { position: relative; flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; gap: calc(12 * var(--dot)); }
+.gmachine.turning { animation: shake .3s steps(4) infinite; }
+.gout { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: calc(2 * var(--dot)); }
 .gmsg:empty { display: none; }
-.gcap { background: none; box-shadow: none; padding: 0; animation: drop .4s ease-out; }
-@keyframes drop { from { transform: translateY(-40px); opacity: 0; } to { transform: none; opacity: 1; } }
-.gresult { display: flex; flex-direction: column; align-items: center; gap: 2px; background: #fff; border-radius: 18px;
-  padding: 8px 14px; animation: pop-in .35s ease-out; }
-@keyframes pop-in { from { transform: scale(.4); } to { transform: none; } }
-.gresult .fig { font-size: clamp(48px, 26vh, 110px); line-height: 1.1; }
-.gresult b { font-size: 22px; }
-.gresult em { font-style: normal; font-weight: bold; color: #fff; background: #e53935; border-radius: 10px; padding: 0 10px; }
-.gresult small { font-size: 15px; color: #666; }
-.gacha .controls { display: flex; gap: 12px; justify-content: center; }
-.gacha .go { font-size: 26px; padding: 8px 28px; background: #ffd54f; }
-.gacha .end { background: #eee; font-size: 22px; padding: 10px 16px; }
-.fig { display: inline-block; position: relative; padding-bottom: 4px;
-  background: radial-gradient(ellipse 45% 12% at 50% 92%, #9e9e9e 98%, transparent 100%); }
-.fig.gold { background: radial-gradient(ellipse 45% 12% at 50% 92%, #ffc107 98%, transparent 100%); }
-.figlist { display: flex; flex-direction: column; gap: 6px; max-height: 42vh; overflow-y: auto; touch-action: pan-y; padding: 2px 2px 6px; }
-.figrow { display: flex; gap: 6px; }
+.gcap { background: none; box-shadow: none; clip-path: none; padding: 0; animation: drop .4s steps(5); }
+.gcap:active:not(:disabled) { padding: 0; box-shadow: none; }
+@keyframes drop { from { transform: translateY(calc(-12 * var(--dot))); opacity: 0; } to { transform: none; opacity: 1; } }
+.gresult { display: flex; flex-direction: column; align-items: center; gap: calc(2 * var(--dot)); background: var(--c-paper);
+  padding: calc(3 * var(--dot)) calc(5 * var(--dot)); }
+.gresult em { background: var(--c-bad); padding: var(--dot) calc(2 * var(--dot)); clip-path: var(--cut); }
+
+/* フィギュア（かざる・あげる・ずかん） */
+.modal .scell { width: calc(26 * var(--dot)); height: calc(28 * var(--dot)); }
+.figlist { display: flex; flex-direction: column; gap: calc(2 * var(--dot)); overflow-y: auto; touch-action: pan-y; min-height: 0;
+  padding: var(--dot); }
+.figrow { display: flex; gap: calc(2 * var(--dot)); }
 .figrow.wrap { flex-wrap: wrap; max-width: 80vw; justify-content: center; }
-.figrow button { font-size: 28px; padding: 4px 8px; display: flex; flex-direction: column; align-items: center; }
-.figrow button small { font-size: 13px; }
-.modal .scell { padding: 0; }
-.note { color: #666; text-align: center; }
-.zukan { display: flex; flex-direction: column; gap: 2px; max-height: 70vh; overflow-y: auto; touch-action: pan-y; }
-.modal .box:has(.zukan) { padding: 10px 14px; gap: 6px; }
-.zhead { font-size: 15px; display: flex; gap: 8px; align-items: center; }
-.zcell { position: relative; display: flex; flex-direction: column; align-items: center; min-width: 58px; background: #f5f5f5;
-  border-radius: 12px; padding: 1px 4px; line-height: 1.15; }
-.zcell .fig { font-size: 24px; }
-.zcell small { font-size: 11px; white-space: nowrap; }
-.zcell .badge { position: absolute; top: -2px; right: -2px; font-size: 11px; background: #ff9800; color: #fff; border-radius: 8px; padding: 0 4px; }
-.zcell.unknown { color: #aaa; }
-@media (max-height: 340px) {
-  .gacha { inset: 4px; padding: 8px; gap: 4px; }
-  .zcell { min-width: 50px; }
-  .zcell .fig { font-size: 22px; }
-}
+.figrow button { padding: calc(2 * var(--dot)) calc(2 * var(--dot)) calc(3 * var(--dot)); }
+.note { text-align: center; }
+.zukan { display: flex; flex-direction: column; gap: calc(2 * var(--dot)); overflow-y: auto; touch-action: pan-y; min-height: 0; }
+.zhead { display: flex; gap: calc(2 * var(--dot)); align-items: center; }
+.zcell { position: relative; display: flex; align-items: flex-end; justify-content: center; width: calc(20 * var(--dot));
+  height: calc(24 * var(--dot)); background: var(--c-paper); clip-path: var(--cut); box-shadow: inset 0 0 0 var(--dot) var(--c-ink);
+  padding-bottom: calc(2 * var(--dot)); box-sizing: border-box; }
+.zcell.unknown { background: var(--c-shade); align-items: center; padding: 0; }
+.zcell .badge { position: absolute; top: var(--dot); right: var(--dot); background: var(--c-accentDark); padding: 0 var(--dot); }
 </style>
 </head>
 <body>
@@ -353,99 +324,1758 @@ button:disabled { opacity: .45; }
     residentFigureMax: 30,
     shelfSlots: 3,
     shelfLove: 1,                  // ペットがたなを見たなかよし（見る長さは toyPlayTime）
+
+    // ドット絵の描き方（ドット絵の設計書 2節）
+    tilesShort: 8,                 // 画面の短い辺に見せるマスの数（めやす）
+    tileCss: [36, 72],             // 1マスの CSS px の大きさの下限・上限（1マス 16 ドット × 整数の k ÷ dpr）
+    uiDotsShort: 130,             // 画面の上の表示（DOM）のドット: 短い辺に、少なくともこのドット数が入る大きさ（Canvas のドットより小さくなることがある）
+    walkStep: 0.3,                 // 歩きのコマを1つ送る距離（マス）
+    idleBob: 0.5,                  // 立ち姿のゆれの1コマの長さ（秒）
+    spinFlip: 0.12,                // 芸「くるっと まわる」で向きを切り替える間隔（秒）
   };
 })(window.Game = window.Game || {});
 </script>
 <script>
-// 見た目の表。子どもの絵に差し替えるときはここだけ直す
-// emoji: 上に描く絵文字 / color: 下地の色 / shape: 'tile'（マスいっぱい）| 'none'
-(function (G) {
-  G.sprites = {
-    grass:   { color: '#8bc34a' },
-    floor:   { color: '#c8a26b', line: '#a9834f' },
-    wall:    { color: '#9e9e9e', line: '#757575' },
-    door:    { color: '#c8a26b', emoji: '🚪' },
-    bed:     { color: '#c8a26b', emoji: '🛏️' },
-    counter: { color: '#ff9800', line: '#e65100' },
-    clerk:   { emoji: '🧑‍🍳' },
-    player:  { emoji: '🧒' },
-    residentLooks: ['👩', '👨', '👵', '👴', '👧', '👦', '🧑', '👱'],
-    ingredients: {
-      bun:     { emoji: '🍞', color: '#e0a050', label: 'パン' },
-      patty:   { emoji: '🥩', color: '#6d3b1f', label: 'おにく' },
-      cheese:  { emoji: '🧀', color: '#ffd54f', label: 'チーズ' },
-      lettuce: { emoji: '🥬', color: '#66bb6a', label: 'レタス' },
-    },
-    burger:  { emoji: '🍔' },
-    coin:    { emoji: '🪙' },
+// 写したもと: html-game の games/hoppe-dive/src/font.js（コミット abc6a49、2026-11-06）。以後は kids-game の中で育てる
+// 5×7 の自作ドット文字。1文字 = 7行×5桁の文字列（'#' が点）。濁点・半濁点は bake.js で重ねる
+(function () {
+  const Game = (window.Game = window.Game || {});
 
+  const G = {};
+  // 7行を1行に並べて書く（' ' 区切り）
+  const def = (ch, rows) => { G[ch] = rows.split(' '); };
+
+  // 数字
+  def('0', '.###. #...# #..## #.#.# ##..# #...# .###.');
+  def('1', '..#.. .##.. ..#.. ..#.. ..#.. ..#.. .###.');
+  def('2', '.###. #...# ....# ...#. ..#.. .#... #####');
+  def('3', '##### ...#. ..#.. ...#. ....# #...# .###.');
+  def('4', '...#. ..##. .#.#. #..#. ##### ...#. ...#.');
+  def('5', '##### #.... ####. ....# ....# #...# .###.');
+  def('6', '..##. .#... #.... ####. #...# #...# .###.');
+  def('7', '##### ....# ...#. ..#.. .#... .#... .#...');
+  def('8', '.###. #...# #...# .###. #...# #...# .###.');
+  def('9', '.###. #...# #...# .#### ....# ...#. .##..');
+
+  // 英字（大文字）
+  def('A', '.###. #...# #...# ##### #...# #...# #...#');
+  def('B', '####. #...# #...# ####. #...# #...# ####.');
+  def('C', '.###. #...# #.... #.... #.... #...# .###.');
+  def('D', '###.. #..#. #...# #...# #...# #..#. ###..');
+  def('E', '##### #.... #.... ####. #.... #.... #####');
+  def('F', '##### #.... #.... ####. #.... #.... #....');
+  def('G', '.###. #...# #.... #.### #...# #...# .####');
+  def('H', '#...# #...# #...# ##### #...# #...# #...#');
+  def('I', '.###. ..#.. ..#.. ..#.. ..#.. ..#.. .###.');
+  def('J', '..### ...#. ...#. ...#. ...#. #..#. .##..');
+  def('K', '#...# #..#. #.#.. ##... #.#.. #..#. #...#');
+  def('L', '#.... #.... #.... #.... #.... #.... #####');
+  def('M', '#...# ##.## #.#.# #.#.# #...# #...# #...#');
+  def('N', '#...# #...# ##..# #.#.# #..## #...# #...#');
+  def('O', '.###. #...# #...# #...# #...# #...# .###.');
+  def('P', '####. #...# #...# ####. #.... #.... #....');
+  def('Q', '.###. #...# #...# #...# #.#.# #..#. .##.#');
+  def('R', '####. #...# #...# ####. #.#.. #..#. #...#');
+  def('S', '.#### #.... #.... .###. ....# ....# ####.');
+  def('T', '##### ..#.. ..#.. ..#.. ..#.. ..#.. ..#..');
+  def('U', '#...# #...# #...# #...# #...# #...# .###.');
+  def('V', '#...# #...# #...# #...# #...# .#.#. ..#..');
+  def('W', '#...# #...# #...# #.#.# #.#.# #.#.# .#.#.');
+  def('X', '#...# #...# .#.#. ..#.. .#.#. #...# #...#');
+  def('Y', '#...# #...# .#.#. ..#.. ..#.. ..#.. ..#..');
+  def('Z', '##### ....# ...#. ..#.. .#... #.... #####');
+
+  // 記号
+  def(' ', '..... ..... ..... ..... ..... ..... .....');
+  def('!', '..#.. ..#.. ..#.. ..#.. ..#.. ..... ..#..');
+  // 矢印（あそびかたのキーの行）
+  def('←', '..... ..#.. .#... ##### .#... ..#.. .....');
+  def('→', '..... ..#.. ...#. ##### ...#. ..#.. .....');
+  def('↑', '..#.. .###. #.#.# ..#.. ..#.. ..#.. ..#..');
+  def('↓', '..#.. ..#.. ..#.. ..#.. #.#.# .###. ..#..');
+  def('…', '..... ..... ..... ..... ..... #.#.# .....');
+  def('?', '.###. #...# ....# ...#. ..#.. ..... ..#..');
+  def('.', '..... ..... ..... ..... ..... ..... ..#..');
+  def(':', '..... ..#.. ..... ..... ..... ..#.. .....');
+  def('-', '..... ..... ..... .###. ..... ..... .....');
+  def('+', '..... ..#.. ..#.. ##### ..#.. ..#.. .....');
+  def('%', '##... ##..# ...#. ..#.. .#... #..## ...##');
+  def('x', '..... ..... #...# .#.#. ..#.. .#.#. #...#');
+  def('/', '....# ....# ...#. ..#.. .#... #.... #....');
+  def('(', '...#. ..#.. .#... .#... .#... ..#.. ...#.');
+  def(')', '.#... ..#.. ...#. ...#. ...#. ..#.. .#...');
+  def('=', '..... ..... ##### ..... ##### ..... .....');
+  def('ー', '..... ..... ..... ##### ..... ..... .....');
+  def('〜', '..... ..... .#... #.#.# ...#. ..... .....');
+  def('。', '..... ..... ..... ..... .#... #.#.. .#...');
+  def('、', '..... ..... ..... ..... #.... .#... .....');
+  def('・', '..... ..... ..... ..#.. ..... ..... .....');
+  def('×', '..... #...# .#.#. ..#.. .#.#. #...# .....');
+  def('♪', '..##. ..#.# ..#.. ..#.. ###.. ###.. .....');
+  // kids-game で足した字
+  def('「', '.###. .#... .#... .#... ..... ..... .....');
+  def('」', '..... ..... ..... ...#. ...#. ...#. .###.');
+  def('ァ', '..... ..... ####. ...#. ..#.. .#... .....');
+  def('ィ', '..... ..... ...#. ..#.. .##.. ..#.. .....');
+  def('ォ', '..... ..... ..#.. ####. ..#.. .##.. .....');
+
+  // ひらがな
+  def('あ', '..#.. ##### ..#.. .####  #.#.# #.#.# .#.#.'.replace('  ', ' '));
+  def('い', '..... #...# #...# #...# #...# .#..# .....');
+  def('う', '.##.. ..... .###. #...# ....# ...#. .##..');
+  def('え', '.##.. ..... ####. ..#.. .##.. #.#.. #..##');
+  def('お', '.#... ####. .#.## .###. ##..# #...# .###.');
+  def('か', '.#... ####. .#.#. .#..# .#..# #...# #.##.');
+  def('き', '..#.. ####. ..#.. #####. ...#. .#... .###.'.replace('#####.', '#####'));
+  def('く', '...#. ..#.. .#... #.... .#... ..#.. ...#.');
+  def('け', '#..#. #.### #..#. #..#. #..#. #.#.. #....');
+  def('こ', '..... .###. ..... ..... ..... #.... .###.');
+  def('さ', '..#.. ##### ...#. .###. #.... #.... .###.');
+  def('し', '.#... .#... .#... .#... .#... .#..# ..##.');
+  def('す', '..#.. ##### ..#.. .##.. .##.. ..#.. .#...');
+  def('せ', '.#.#. ##### .#.#. .#.#. .#... .#... ..###');
+  def('そ', '####. ..#.. .#... ##### ..#.. .#... ..##.');
+  def('た', '.#... ####. .#... #.### #.... #.... #.###');
+  def('ち', '.#... ####. .#... .###. #...# ....# .###.');
+  def('つ', '..... ..... ####. ....# ....# ...#. ###..');
+  def('て', '..... ##### ..#.. .#... .#... .#... ..##.');
+  def('と', '.#... .#... .#.## .##.. #.... #.... .####');
+  def('な', '.#... ####. .#..# #..#. ...#. .###. #.##.');
+  def('に', '#.... #.### #.... #.... #.#.. #.#.. #..##');
+  def('ぬ', '.#.#. ##### #.#.# #.#.# #.### #..## .#.##');
+  def('ね', '.#... ####. .#.#. .##.# ##..# #.#.# #.#.#');
+  def('の', '..... .###. #.#.# #.#.# #.#.# #..#. .....');
+  def('は', '#..#. #.### #..#. #..#. #.##. #.#.# #.##.');
+  def('ひ', '..... ##.#. .#..# #...# #...# #...# .###.');
+  def('ふ', '..#.. ...#. ..#.. ..#.. #.#.# #...# .##..');
+  def('へ', '..... ..... .#... #.#.. ...#. ....# .....');
+  def('ほ', '#.### #..#. #.### #..#. #.##. #.#.# #.##.');
+  def('ま', '..#.. ##### ..#.. ##### ..#.. .###. #.#.#');
+  def('み', '###.. .#... .#.#. #####  .#.#. #..#. ..#..'.replace('  ', ' '));
+  def('む', '.#... ####. .#..# .#... ##... #.#.# .###.');
+  def('め', '.#.#. ..#.. ##### #.#.# ##..# #..#. .##..');
+  def('も', '..#.. .###. ..#.. .###. ..#.# ..#.# ...#.');
+  def('や', '.#... .#.#. ###.# .#.#. ..#.. ..#.. ..#..');
+  def('ゆ', '..#.. #.##. ##.## #.#.# #.##. ..#.. .#...');
+  def('よ', '...#. ...#. ...## ...#. .###. #..#. .##.#');
+  def('ら', '.##.. ...#. .#... #.... ####. ....# .###.');
+  def('り', '#..#. #...# #...# #...# ....# ...#. ..#..');
+  def('る', '####. ..#.. .#... ####. #...# .###. .##.#');
+  def('れ', '.#... ##.#. .##.# .#..# ##..# .#..# .#..#');
+  def('ろ', '####. ..#.. .#... ####. ....# ....# .###.');
+  def('わ', '.#... ###.. .#.#. .##.# ##..# .#..# .#.#.');
+  def('を', '.#... ####. ..#.. .#### ##... #.#.. .####');
+  def('ん', '..#.. ..#.. .#... .#... ##.#. #.#.# #..#.');
+  def('っ', '..... ..... ..... .###. ...#. ...#. .##..');
+  def('ゃ', '..... ..... .#... .###. ##.#. .#... .#...');
+  def('ゅ', '..... ..... .#... ####. ##.#. .#... .....');
+  def('ょ', '..... ..... ...#. ...#. .###. #..#. .###.');
+
+  // カタカナ
+  def('ア', '##### ....# ..##. ..#.. ..#.. .#... #....');
+  def('イ', '....# ...#. ..#.. .##.. #.#.. ..#.. ..#..');
+  def('ウ', '..#.. ##### #...# ....# ...#. ..#.. .#...');
+  def('エ', '..... ##### ..#.. ..#.. ..#.. ..#.. #####');
+  def('オ', '...#. ##### ...#. ..##. .#.#. #..#. ..##.');
+  def('カ', '..#.. ##### ..#.# ..#.# .#..# .#..# #..#.');
+  def('キ', '..#.. ##### ..#.. ##### ..#.. ..#.. ..#..');
+  def('ク', '.#... .#### #...# ....# ...#. ..#.. ##...');
+  def('ケ', '.#... .#### #..#. ...#. ...#. ..#.. .#...');
+  def('コ', '..... ##### ....# ....# ....# ....# #####');
+  def('サ', '.#.#. ##### .#.#. .#.#. ...#. ..#.. .#...');
+  def('シ', '#.... .#..# ....# ##..# ...#. ..#.. ##...');
+  def('ス', '##### ....# ...#. ..#.. .#.#. #...# .....');
+  def('セ', '.#... ##### .#..# .#.#. .#... .#... ..###');
+  def('ソ', '#...# #...# .#..# ....# ...#. ..#.. ##...');
+  def('タ', '.#... .#### #...# .##.# ...#. ..#.. ##...');
+  def('チ', '...## ###.. ..#.. ##### ..#.. ..#.. .#...');
+  def('ツ', '#.#.# #.#.# #.#.# ....# ...#. ..#.. ##...');
+  def('テ', '.###. ..... ##### ..#.. ..#.. ..#.. .#...');
+  def('ト', '.#... .#... .##.. .#.#. .#... .#... .#...');
+  def('ナ', '..#.. ##### ..#.. ..#.. ..#.. .#... #....');
+  def('ニ', '..... .###. ..... ..... ..... ..... #####');
+  def('ヌ', '##### ....# .#.#. ..#.. .#.#. #.... .....');
+  def('ネ', '..#.. ##### ...#. ..#.. .###. #.#.# ..#..');
+  def('ノ', '....# ....# ...#. ..#.. .#... #.... .....');
+  def('ハ', '..... .#.#. .#.#. #...# #...# #...# .....');
+  def('ヒ', '#.... #.... #..## ###.. #.... #.... .####');
+  def('フ', '##### ....# ....# ...#. ..#.. .#... #....');
+  def('ヘ', '..... .#... #.#.. ...#. ....# ..... .....');
+  def('ホ', '..#.. ##### ..#.. #.#.# #.#.# ..#.. ..#..');
+  def('マ', '##### ....# ...#. #.#.. .#... ..#.. .....');
+  def('ミ', '.###. ..... .###. ..... ..... .###. .....');
+  def('ム', '..#.. ..#.. .#... .#... .#..# ##### .....');
+  def('メ', '....# ...#. #.#.. .#... .##.. #..#. .....');
+  def('モ', '.###. ..#.. ##### ..#.. ..#.. ..#.. ..###');
+  def('ヤ', '.#... ##### .#..# .#.#. .#... .#... .#...');
+  def('ユ', '..... .###. ...#. ...#. ...#. ##### .....');
+  def('ヨ', '##### ....# ....# ##### ....# ....# #####');
+  def('ラ', '.###. ..... ##### ....# ...#. ..#.. ##...');
+  def('リ', '#...# #...# #...# ....# ...#. ..#.. .#...');
+  def('ル', '..#.. #.#.. #.#.. #.#.. #.#.# #.##. #.#..');
+  def('レ', '#.... #.... #.... #...# #..#. #.#.. ##...');
+  def('ロ', '..... ##### #...# #...# #...# ##### .....');
+  def('ワ', '##### #...# ....# ...#. ..#.. .#... #....');
+  def('ヲ', '##### ....# .###. ....# ...#. ..#.. ##...');
+  def('ン', '##... ....# ....# ...#. ..#.. .#... #....');
+  def('ッ', '..... ..... #.#.# #.#.# ...#. ..#.. .#...');
+  def('ャ', '..... ..... .#... ##### .#.#. .#... .#...');
+  def('ュ', '..... ..... ..... .##.. ..#.. .###. .....');
+  def('ョ', '..... ..... .###. ...#. .###. ...#. .###.');
+
+  // 濁点・半濁点の付いた字は、元の字に重ねて作る
+  const DAKU = { が: 'か', ぎ: 'き', ぐ: 'く', げ: 'け', ご: 'こ', ざ: 'さ', じ: 'し', ず: 'す', ぜ: 'せ', ぞ: 'そ', だ: 'た', ぢ: 'ち', づ: 'つ', で: 'て', ど: 'と', ば: 'は', び: 'ひ', ぶ: 'ふ', べ: 'へ', ぼ: 'ほ',
+    ガ: 'カ', ギ: 'キ', グ: 'ク', ゲ: 'ケ', ゴ: 'コ', ザ: 'サ', ジ: 'シ', ズ: 'ス', ゼ: 'セ', ゾ: 'ソ', ダ: 'タ', ヂ: 'チ', ヅ: 'ツ', デ: 'テ', ド: 'ト', バ: 'ハ', ビ: 'ヒ', ブ: 'フ', ベ: 'ヘ', ボ: 'ホ', ヴ: 'ウ' };
+  const HANDAKU = { ぱ: 'は', ぴ: 'ひ', ぷ: 'ふ', ぺ: 'へ', ぽ: 'ほ', パ: 'ハ', ピ: 'ヒ', プ: 'フ', ペ: 'ヘ', ポ: 'ホ' };
+
+  // 全角の記号は、半角の字で描く
+  const NORM = { '！': '!', '？': '?', '（': '(', '）': ')', '　': ' ', '～': '〜', '：': ':', '＋': '+', '－': '-', '／': '/' };
+
+  Game.font = { glyphs: G, DAKU, HANDAKU, NORM, w: 5, h: 7, adv: 6 };
+})();
+</script>
+<script>
+// 見た目の表。絵は文字の格子（1文字 = 1色、'.' は透明）。色セットは Resurrect 64
+// 出どころ: https://lospec.com/palette-list/resurrect-64（Kerrie Lake）。色の文字は 0-9 a-z A-Z @ % の順（設計書 2026-11-06 1節）
+// 絵の本体は G.sprites.img（16×16・16×24）、小さい絵は G.sprites.mini（8×8 まで）。人とペットは sprites-people.js、ミニ絵とアイコンは sprites-mini.js
+(function (G) {
+  const PAL = {
+    '0': '#2e222f', '1': '#3e3546', '2': '#625565', '3': '#966c6c',  // いちばん こい / こい むらさきグレー / むらさきグレー / くすんだ あか茶
+    '4': '#ab947a', '5': '#694f62', '6': '#7f708a', '7': '#9babb2',  // ベージュ / こい ふじ / ふじグレー / あおグレー
+    '8': '#c7dcd0', '9': '#ffffff', 'a': '#6e2727', 'b': '#b33831',  // うすい あおグレー / しろ / こい あか茶 / あか茶
+    'c': '#ea4f36', 'd': '#f57d4a', 'e': '#ae2334', 'f': '#e83b3b',  // あか / オレンジ / こい あか / あか(あかるい)
+    'g': '#fb6b1d', 'h': '#f79617', 'i': '#f9c22b', 'j': '#7a3045',  // こい オレンジ / オレンジ(きいろより) / きいろ / こい えんじ
+    'k': '#9e4539', 'l': '#cd683d', 'm': '#e6904e', 'n': '#fbb954',  // ちゃ / うす ちゃ / はだ(こい) / たまごいろ
+    'o': '#4c3e24', 'p': '#676633', 'q': '#a2a947', 'r': '#d5e04b',  // こげちゃ / オリーブ / うす オリーブ / きみどり(きいろより)
+    's': '#fbff86', 't': '#165a4c', 'u': '#239063', 'v': '#1ebc73',  // うす きいろ / こい みどり / みどり / あかるい みどり
+    'w': '#91db69', 'x': '#cddf6c', 'y': '#313638', 'z': '#374e4a',  // わかば / うす わかば / すみ / こい あおみどり
+    'A': '#547e64', 'B': '#92a984', 'C': '#b2ba90', 'D': '#0b5e65',  // くすんだ みどり / うす くすみどり / うす くすみどり2 / こい あおみどり2
+    'E': '#0b8a8f', 'F': '#0eaf9b', 'G': '#30e1b9', 'H': '#8ff8e2',  // あおみどり / エメラルド / ミント / うす ミント
+    'I': '#323353', 'J': '#484a77', 'K': '#4d65b4', 'L': '#4d9be6',  // こい あい / あい / あお / そらいろ
+    'M': '#8fd3ff', 'N': '#45293f', 'O': '#6b3e75', 'P': '#905ea9',  // うす そらいろ / こい むらさき茶(りんかく) / むらさき / うす むらさき
+    'Q': '#a884f3', 'R': '#eaaded', 'S': '#753c54', 'T': '#a24b6f',  // ラベンダー / うす ピンク / えんじ茶 / こい ピンク
+    'U': '#cf657f', 'V': '#ed8099', 'W': '#831c5d', 'X': '#c32454',  // ピンク / うす ももいろ / こい べに / べに
+    'Y': '#f04f78', 'Z': '#f68181', '@': '#fca790', '%': '#fdcbb0',  // あかるい べに / さくら / はだ(ももいろ) / はだ(うすい)
+  };
+  // ---- 地面と壁（設計書 3節「壁と地面」）----
+  // 16×16 の格子を作る道具: 全部 '.' にして、行・列・点を書き込む
+  const grid = () => Array.from({ length: 16 }, () => '.'.repeat(16));
+  const setRow = (g, y, row) => { g[y] = row; return g; };
+  const setCol = (g, x, ch) => g.map((r) => r.slice(0, x) + ch + r.slice(x + 1));
+  const stamp = (g, x, y, rows) => {
+    const out = g.map((r) => r.split(''));
+    rows.forEach((row, j) => [...row].forEach((c, i) => { if (c !== '.') out[y + j][x + i] = c; }));
+    return out.map((r) => r.join(''));
+  };
+  const fill = (ch) => Array.from({ length: 16 }, () => ch.repeat(16));
+
+  // 芝生: w 地 / x 明るい草 / u 暗い草 / Y・i・9 花
+  const TUFT = ['x.x', 'uxu'], PINK = ['.Y.', 'YiY', '.u.'], WHITE = ['9.', '.9'];
+  const GRASS = [
+    fill('w'),
+    stamp(fill('w'), 6, 8, TUFT),
+    stamp(stamp(stamp(fill('w'), 9, 2, TUFT), 4, 9, TUFT), 12, 13, TUFT),
+    stamp(stamp(fill('w'), 3, 4, PINK), 10, 10, TUFT),
+    stamp(stamp(stamp(fill('w'), 11, 3, WHITE), 4, 11, WHITE), 7, 6, TUFT),
+  ];
+
+  // 床（板）: n 板 / m 板の境目。芝生と接する辺は、ふち（k）。手前（s）は厚み
+  const FLOOR = (() => {
+    const r = [], joint = [10, 4, 13, 7];
+    for (let p = 0; p < 4; p++) {
+      for (let i = 0; i < 3; i++) r.push([...'nnnnnnnnnnnnnnnn'].map((c, x) => (x === joint[p] ? 'm' : c)).join(''));
+      r.push('mmmmmmmmmmmmmmmm');
+    }
+    return r;
+  })();
+
+  // 壁（ななめ上から。半マスの高さ）: 9 上の面 / 8 上の面の影 / M L 手前の面（レンガ）/ N 輪郭
+  // 上の面はマスいっぱい。下が壁でないときだけ、下半分に手前の面を見せる
+  const WALL_FACE = ['8888888888888888', 'LLLLLLLLLLLLLLLL', 'MMMMMMMLMMMMMMMM', 'MMMMMMMLMMMMMMMM',
+    'LLLLLLLLLLLLLLLL', 'MMMLMMMMMMMLMMMM', 'MMMLMMMMMMMLMMMM', 'NNNNNNNNNNNNNNNN'];
+  // ドア（通り道）: 壁を切って、床が見える。横の壁では左右に柱（壁）、縦の壁では上下に柱。通り道に マット（U V）
+  const MAT_H = ['UUUUUU', 'UVVVVU', 'UVVVVU', 'UUUUUU'];
+  const DOOR_H = FLOOR.map((r, y) => {
+    const post = y < 8 ? '999' : WALL_FACE[y - 8].slice(0, 3);
+    return post + 'N' + r.slice(4, 12) + 'N' + post;
+  });
+  const DOOR_V = [fill('9')[0], fill('9')[0], '8888888888888888', 'LLLLLLLLLLLLLLLL', 'MMMMMMMLMMMMMMMM', 'NNNNNNNNNNNNNNNN']
+    .concat(FLOOR.slice(8, 15), ['NNNNNNNNNNNNNNNN', '9999999999999999', '9999999999999999']);
+  const postRows = (x) => grid().map((r, y) => (y < 6 || y > 12 ? r.slice(0, x) + 'N' + r.slice(x + 1) : r));
+  const lower = (rows) => grid().slice(0, 8).concat(rows);
+  const PARTS = {
+    floor: {
+      base: FLOOR,
+      N: setRow(grid(), 0, 'kkkkkkkkkkkkkkkk'),
+      W: setCol(grid(), 0, 'k'),
+      E: setCol(grid(), 15, 'k'),
+      S: setRow(setRow(grid(), 14, 'llllllllllllllll'), 15, 'kkkkkkkkkkkkkkkk'),
+    },
+    wall: {
+      base: stamp(stamp(stamp(fill('9'), 3, 4, ['88']), 10, 9, ['88']), 6, 13, ['8']).map((r, y) => (y === 15 ? '8888888888888888' : r)),
+      N: setRow(grid(), 0, 'NNNNNNNNNNNNNNNN'),
+      W: setCol(grid(), 0, 'N'),
+      E: setCol(grid(), 15, 'N'),
+      S: lower(WALL_FACE),
+    },
+    door: {
+      base: stamp(DOOR_H, 5, 11, MAT_H),
+      N: setRow(grid(), 0, 'NNNN........NNNN'),
+      W: setCol(grid(), 0, 'N'),
+      E: setCol(grid(), 15, 'N'),
+      // 縦の壁の中のドア（上か下が壁で、左右は壁でないとき）
+      vert: {
+        base: stamp(DOOR_V, 6, 7, ['UUUU', 'UVVU', 'UVVU', 'UVVU', 'UUUU']),
+        N: setRow(grid(), 0, 'NNNNNNNNNNNNNNNN'),
+        S: setRow(grid(), 15, 'NNNNNNNNNNNNNNNN'),
+        W: postRows(0),
+        E: postRows(15),
+      },
+    },
+  };
+
+  // 店のカウンター: 上の板（木）と、前の面（店の色）に白い看板。店員は奥に立ち、上半身だけ見える
+  function counter(front, dark, icon) {
+    const rows = ['................', '................', '................', '................',
+      'NNNNNNNNNNNNNNNN', 'NnnnnnnnnnnnnnnN', 'NmmmmmmmmmmmmmmN', 'NNNNNNNNNNNNNNNN'];
+    for (let i = 0; i < 6; i++) rows.push('N' + front + front + '9999999999' + front + front + 'N');
+    rows.push('N' + dark.repeat(14) + 'N', 'NNNNNNNNNNNNNNNN');
+    const h = icon.length, y0 = 8 + ((6 - h) >> 1);
+    return stamp(rows, 4, Math.max(8, y0), icon);
+  }
+
+  G.sprites = {
+    PAL,
+    parts: PARTS,
+    make: { counter, stamp }, // 看板にミニ絵を使う店と台は、sprites-mini.js でミニ絵のあとに作る
+    img: {     // id → 格子（または { frames: [格子, ...] }）
+      grass0: GRASS[0], grass1: GRASS[1], grass2: GRASS[2], grass3: GRASS[3], grass4: GRASS[4],
+      // 家具と景品（設計書 3節）
+      chair: [
+        '................',
+        '................',
+        '....NNNNNNNN....',
+        '....NmmmmmmN....',
+        '....NnnnnnnN....',
+        '....NmmmmmmN....',
+        '....NNNNNNNN....',
+        '....Nk....kN....',
+        '...NNNNNNNNNN...',
+        '...NnnnnnnnnN...',
+        '...NmmmmmmmmN...',
+        '...NNNNNNNNNN...',
+        '...Nk......kN...',
+        '...Nk......kN...',
+        '...Nk......kN...',
+        '...NN......NN...',
+      ],
+      desk: [
+        '................',
+        '................',
+        '..NNNN..........',
+        '..NLLN......NN..',
+        '..NKKN.....NiN..',
+        'NNNNNNNNNNNNNNNN',
+        'NnnnnnnnnnnnnnnN',
+        'NmmmmmmmmmmmmmmN',
+        'NNNNNNNNNNNNNNNN',
+        'NkN.NkkkkkkN.NkN',
+        'NkN.NaaiaaaN.NkN',
+        'NkN.NNNNNNNN.NkN',
+        'NkN..........NkN',
+        'NkN..........NkN',
+        'NkN..........NkN',
+        'NNN..........NNN',
+      ],
+      shelf: [
+        '................',
+        '................',
+        'NNNNNNNNNNNNNNNN',
+        'NkkkkkkkkkkkkkkN',
+        'NkffLniiKnvvnPkN',
+        'NkffLLiiKKvvYPkN',
+        'NkffLLiiKKvvYPkN',
+        'NkffLLiiKKvvYPkN',
+        'NkffLLiiKKvvYPkN',
+        'NkkkkkkkkkkkkkkN',
+        'NknYvvKnffinLLkN',
+        'NkYYvvKKffiiLLkN',
+        'NkYYvvKKffiiLLkN',
+        'NkYYvvKKffiiLLkN',
+        'NkYYvvKKffiiLLkN',
+        'NkkkkkkkkkkkkkkN',
+        'NkPniiLnvvfnYYkN',
+        'NkPPiiLLvvffYYkN',
+        'NkPPiiLLvvffYYkN',
+        'NkPPiiLLvvffYYkN',
+        'NkPPiiLLvvffYYkN',
+        'NkkkkkkkkkkkkkkN',
+        'NkkkkkkkkkkkkkkN',
+        'NNNNNNNNNNNNNNNN',
+      ],
+      tv: { frames: [[
+          '................',
+          '................',
+          '.....N....N.....',
+          '......N..N......',
+          '.NNNNNNNNNNNNNN.',
+          '.N666666666666N.',
+          '.N6NNNNNNNNN66N.',
+          '.N6NIIIIIIIN6iN.',
+          '.N6NIKIIIIIN66N.',
+          '.N6NIIIIIIIN6fN.',
+          '.N6NIIIIIIIN66N.',
+          '.N6NNNNNNNNN66N.',
+          '.N222222222222N.',
+          '.NNNNNNNNNNNNNN.',
+          '..NN........NN..',
+          '................',
+        ], [
+          '................',
+          '................',
+          '.....N....N.....',
+          '......N..N......',
+          '.NNNNNNNNNNNNNN.',
+          '.N666666666666N.',
+          '.N6NNNNNNNNN66N.',
+          '.N6NMMMM9MMN6iN.',
+          '.N6NM9MMMMMN66N.',
+          '.N6NMMMLMM9N6fN.',
+          '.N6NLMMMMMMN66N.',
+          '.N6NNNNNNNNN66N.',
+          '.N222222222222N.',
+          '.NNNNNNNNNNNNNN.',
+          '..NN........NN..',
+          '................',
+        ]] },
+      bath: [
+        '................',
+        '................',
+        '................',
+        '............NN..',
+        '...........N7N..',
+        'NNNNNNNNNNNNNNNN',
+        'N9MMMMMMMMMMMM8N',
+        'N9M99MMMM9MMMM8N',
+        'NNNNNNNNNNNNNNNN',
+        'N99999999999998N',
+        'N99999999999998N',
+        'N89999999999988N',
+        '.N888888888888N.',
+        '..NNNNNNNNNNNN..',
+        '..NiN......NiN..',
+        '...N........N...',
+      ],
+      piano: [
+        '....NNNNNNN.....',
+        '....N99999N.....',
+        '....N9N9N9N.....',
+        '....N99999N.....',
+        'NNNNNNNNNNNNNNNN',
+        'N22222222222221N',
+        'N21111111111111N',
+        'N21111111111111N',
+        'NNNNNNNNNNNNNNNN',
+        'N90909909090990N',
+        'N99999999999999N',
+        'NNNNNNNNNNNNNNNN',
+        'N21111111111111N',
+        'N21111111111111N',
+        'N21111111111111N',
+        'N11111111111111N',
+        'NNNNNNNNNNNNNNNN',
+        'N1N..........N1N',
+        'NNN..........NNN',
+      ],
+      plush: [
+        '................',
+        '................',
+        '................',
+        '...NN......NN...',
+        '..NlkN....NklN..',
+        '..NllNNNNNNllN..',
+        '...NllllllllN...',
+        '..Nll0llll0llN..',
+        '..NlZl%%%%lZlN..',
+        '..Nlll%00%lllN..',
+        '...NllllllllN...',
+        '..NlNllllllNlN..',
+        '..NlNll%%llNlN..',
+        '..NllNllllNllN..',
+        '...NNllNNllNN...',
+        '....NNN..NNN....',
+      ],
+      flower: [
+        '................',
+        '................',
+        '......N..N......',
+        '.....NfNNfN.....',
+        '.....NffffN.....',
+        '.....NfeffN.....',
+        '......NffN......',
+        '.......Nu.......',
+        '.....vNu........',
+        '......vuN.......',
+        '.......u........',
+        '....NNNNNNNN....',
+        '....NllllllN....',
+        '.....NllllN.....',
+        '.....NkkkkN.....',
+        '......NNNN......',
+      ],
+      fridge: [
+        '..NNNNNNNNNNNN..',
+        '..N9999999998N..',
+        '..N9999999N98N..',
+        '..N9999999N98N..',
+        '..N9999999998N..',
+        '..N9999999998N..',
+        '..N8888888888N..',
+        '..NNNNNNNNNNNN..',
+        '..N9999999998N..',
+        '..N9Y99999N98N..',
+        '..N9999999N98N..',
+        '..N9999999N98N..',
+        '..N9999999998N..',
+        '..N9999999998N..',
+        '..N9999999998N..',
+        '..N9999999998N..',
+        '..N9999999998N..',
+        '..N9999999998N..',
+        '..N8888888888N..',
+        '..NNNNNNNNNNNN..',
+        '..NN........NN..',
+      ],
+      bigBear: [
+        '..NNN......NNN..',
+        '.NkakN....NkakN.',
+        '.NkkkNNNNNNkkkN.',
+        '..NkkkkkkkkkkN..',
+        '.NkkkkkkkkkkkkN.',
+        '.Nkk0kkkkkk0kkN.',
+        '.NkZkk%%%%kkZkN.',
+        '.Nkkkk%00%kkkkN.',
+        '..Nkkkk%%kkkkN..',
+        '...NNYYNNYYNN...',
+        '..NkkNYYYYNkkN..',
+        '.NkkNkkkkkkNkkN.',
+        '.NkkNkk%%kkNkkN.',
+        '.NkkNk%%%%kNkkN.',
+        '..NNNkkkkkkNNN..',
+        '...NkkNNNNkkN...',
+        '...NNNN..NNNN...',
+      ],
+      robot: [
+        '.......N........',
+        '......NiN.......',
+        '.......N........',
+        '...NNNNNNNNNN...',
+        '...N88888888N...',
+        '...N8MM88MM8N...',
+        '...N8MM88MM8N...',
+        '...N88NNNN88N...',
+        '...N77777777N...',
+        '...NNNNNNNNNN...',
+        '..NN87777778NN..',
+        '.N7N8YY88ii8N7N.',
+        '.N7N88888888N7N.',
+        '..NN77777777NN..',
+        '....N7N..N7N....',
+        '....NNN..NNN....',
+      ],
+      gameConsole: [
+        '................',
+        '................',
+        '................',
+        '................',
+        '................',
+        '..NNNN....NNNN..',
+        '.N2222NNNN2222N.',
+        'N22N22222222Y22N',
+        'N2NNN222222L2f2N',
+        'N22N22222222i22N',
+        'N22222NNNN22222N',
+        'N2222N....N2222N',
+        '.N22N......N22N.',
+        '..NN........NN..',
+      ],
+      mirrorBall: [
+        '.......N........',
+        '.......N........',
+        '.......N........',
+        '......NNNNN.....',
+        '....NNM9779NN...',
+        '...N9M979988MN..',
+        '...NM9779988MN..',
+        '..NM979988MM77N.',
+        '..N9779988MM77N.',
+        '..N79988MM7797N.',
+        '..N79988MM7776N.',
+        '..N988MM779767N.',
+        '...N88MM77767N..',
+        '...NMM7797676N..',
+        '....NN77767NN...',
+        '......NNNNN.....',
+      ],
+      dino: [
+        '................',
+        '.........NNNNN..',
+        '........NvvvvvN.',
+        '........Nvv0vvvN',
+        '........NvvvvvvN',
+        '........NvvNNNN.',
+        '.N......NvvvN...',
+        '.NN....NvvvvNN..',
+        '.NvN..NvvvvvNvN.',
+        '.NvvNNvvvvvvvN..',
+        '..NuvvvvvvxxN...',
+        '...NuuvvvxxN....',
+        '....NNuvvvN.....',
+        '.....NvNNvN.....',
+        '.....NvN.NvN....',
+        '.....NNN.NNN....',
+      ],
+      // サッカーボール: まん中と ふちに 黒い五角形、まわりは白い六角形
+      ball: [
+        '................',
+        '................',
+        '.....NNNNNN.....',
+        '...NN000009NN...',
+        '..N9990009999N..',
+        '..N9999099999N..',
+        '.N999990999990N.',
+        '.N099900099900N.',
+        '.N009000009000N.',
+        '.N090000000900N.',
+        '.N999000009880N.',
+        '.N999900098888N.',
+        '..N9909990888N..',
+        '..N0099988008N..',
+        '...NN998880NN...',
+        '.....NNNNNN.....',
+      ],
+      yarn: [
+        '................',
+        '................',
+        '......NNNN......',
+        '....NNUVVUNN....',
+        '...NUVVUVVUVN...',
+        '...NVUVVUVVUN...',
+        '..NUVVUVVUVVUN..',
+        '..NVUVVUVVUVTN..',
+        '..NVVUVVUVVUTN.N',
+        '..NUVVUVVUTTUN..',
+        '...NUVVUVTUTN...',
+        '...NVUVVUTTUN...',
+        '....NNUTTUNN....',
+        '......NNNN......',
+      ],
+      frisbee: [
+        '................',
+        '................',
+        '................',
+        '................',
+        '................',
+        '................',
+        '................',
+        '....NNNNNNNN....',
+        '..NNLMMMMMMLNN..',
+        '.NLLLMMMMMMLLLN.',
+        '.NLLLMMMMMMLLLN.',
+        '..NNLMMMMMMLNN..',
+        '....NNNNNNNN....',
+      ],
+      figureShelf: [
+        'NNNNNNNNNNNNNNNN',
+        'NkkkkkkkkkkkkkkN',
+        'NkllllllllllllkN',
+        'NkllllllllllllkN',
+        'NkllllllllllllkN',
+        'NkllllllllllllkN',
+        'NkllllllllllllkN',
+        'NkllllllllllllkN',
+        'NkllllllllllllkN',
+        'NkllllllllllllkN',
+        'NkllllllllllllkN',
+        'NkkkkkkkkkkkkkkN',
+        'NkllllllllllllkN',
+        'NkllllllllllllkN',
+        'NkllllllllllllkN',
+        'NkllllllllllllkN',
+        'NkllllllllllllkN',
+        'NkllllllllllllkN',
+        'NkllllllllllllkN',
+        'NkllllllllllllkN',
+        'NkllllllllllllkN',
+        'NkllllllllllllkN',
+        'NkkkkkkkkkkkkkkN',
+        'NNNNNNNNNNNNNNNN',
+      ],
+      bed: [
+        '................',
+        '.NNNNNNNNNNNNNN.',
+        '.NllllllllllllN.',
+        '.NkkkkkkkkkkkkN.',
+        '.NNNNNNNNNNNNNN.',
+        '.NN9999999998NN.',
+        '.N89999999998 N.'.replace(' ', '8'),
+        '.NN8888888888NN.',
+        '.N999999999999N.',
+        '.NVVVVVVVVVVVVN.',
+        '.NVVVVVVVVVVVVN.',
+        '.NVVVVUVVVVUVVN.',
+        '.NVVVVVVVVVVVVN.',
+        '.NUUUUUUUUUUUUN.',
+        '.NNNNNNNNNNNNNN.',
+        '.Na..........aN.',
+      ],
+      sofa: [
+        '................',
+        '................',
+        '................',
+        '................',
+        '..NNNNNNNNNNNN..',
+        '.NVVVVVVVVVVVVN.',
+        '.NVVVVVVVVVVVUN.',
+        '.NVVVVVVVVVVVUN.',
+        'NNUUUUUUUUUUUUNN',
+        'NVVNVVVVVVVVNVVN',
+        'NVVNVVVVVVVVNVVN',
+        'NVVNUUUUUUUUNVVN',
+        'NUUNNNNNNNNNNUUN',
+        'NUUUUUUUUUUUUUUN',
+        'NNNNNNNNNNNNNNNN',
+        '.NSN........NSN.',
+      ],
+    },
+    mini: {},  // id → 8×8 までの格子
+    // 画面の上の表示（DOM）の色: 名前 → 色の文字。art.setColors が CSS 変数 --c-名前 にする
+    ui: {
+      ink: '0', paper: '9', shade: '8', bg: 't', panel: '%', accent: 'i', accentDark: 'h', good: 'v', bad: 'f',
+      sky: 'M', pink: 'R', glass: 'H', rope: '2', rotate: 'u', dim: '7',
+    },
+    ingredients: { bun: { label: 'パン' }, patty: { label: 'おにく' }, cheese: { label: 'チーズ' }, lettuce: { label: 'レタス' } },
     // ペット。size はマスに対する大きさ
-    petCounter: { color: '#4fc3f7', line: '#0288d1' },
-    petClerk: { emoji: '🧑‍🌾' },
-    paw:      { emoji: '🐾' },
-    food:     { emoji: '🦴' },
-    heart:    { emoji: '❤️' },
-    petHungry: { emoji: '🍖' },
     pets: {
-      dog:      { emoji: '🐕', size: 0.7, names: ['ポチ', 'シロ', 'コロ', 'ハチ', 'クロ', 'マル', 'チョコ', 'モモ'] },
-      cat:      { emoji: '🐈', size: 0.65, names: ['ミケ', 'タマ', 'トラ', 'ミー', 'ルナ', 'ソラ', 'キナコ', 'ニャン'] },
-      rabbit:   { emoji: '🐇', size: 0.6, names: ['ピョン', 'ユキ', 'ミミ', 'モチ', 'ココ', 'ラビ', 'シフォン', 'マシュ'] },
-      hamster:  { emoji: '🐹', size: 0.45, names: ['ハム', 'クルミ', 'ゴマ', 'ポテ', 'チップ', 'まめ', 'プリン', 'もも'] },
-      hedgehog: { emoji: '🦔', size: 0.45, names: ['チク', 'ハリー', 'マロン', 'くり', 'トゲ', 'ぽん', 'モカ', 'ころん'] },
-      mouse:    { emoji: '🐁', size: 0.4, names: ['チュー', 'チーズ', 'ちび', 'ねね', 'ミッキ', 'ピコ', 'こむぎ', 'すず'] },
-      parakeet: { emoji: '🦜', size: 0.5, names: ['ピーちゃん', 'ピッピ', 'ソラ', 'キー', 'ルリ', 'ハル', 'ミドリ', 'ぴよ'] },
-      turtle:   { emoji: '🐢', size: 0.55, names: ['カメキチ', 'のんびり', 'ゆっくり', 'ミドリ', 'こうら', 'トロ', 'カメコ', 'ぷかぷか'] },
+      dog:      { size: 0.7, names: ['ポチ', 'シロ', 'コロ', 'ハチ', 'クロ', 'マル', 'チョコ', 'モモ'] },
+      cat:      { size: 0.65, names: ['ミケ', 'タマ', 'トラ', 'ミー', 'ルナ', 'ソラ', 'キナコ', 'ニャン'] },
+      rabbit:   { size: 0.6, names: ['ピョン', 'ユキ', 'ミミ', 'モチ', 'ココ', 'ラビ', 'シフォン', 'マシュ'] },
+      hamster:  { size: 0.45, names: ['ハム', 'クルミ', 'ゴマ', 'ポテ', 'チップ', 'まめ', 'プリン', 'もも'] },
+      hedgehog: { size: 0.45, names: ['チク', 'ハリー', 'マロン', 'くり', 'トゲ', 'ぽん', 'モカ', 'ころん'] },
+      mouse:    { size: 0.4, names: ['チュー', 'チーズ', 'ちび', 'ねね', 'ミッキ', 'ピコ', 'こむぎ', 'すず'] },
+      parakeet: { size: 0.5, names: ['ピーちゃん', 'ピッピ', 'ソラ', 'キー', 'ルリ', 'ハル', 'ミドリ', 'ぴよ'] },
+      turtle:   { size: 0.55, names: ['カメキチ', 'のんびり', 'ゆっくり', 'ミドリ', 'こうら', 'トロ', 'カメコ', 'ぷかぷか'] },
     },
-    // かぐやさん。react: ボタンを押したとき・住人が使っているときの絵
-    furnitureCounter: { color: '#ce93d8', line: '#8e24aa' },
-    furnitureClerk: { emoji: '🧑‍🔧' },
-    furnitureIcon: { emoji: '🛋️' },
-    toGo:     { emoji: '🥡' },
-    sparkle:  { emoji: '✨' },
+    // 家具と景品。reactMini: ボタンを押したとき・住人が使っているときの印（ミニ絵）
     furniture: {
-      chair:  { emoji: '🪑', react: '😌' },
-      desk:   { color: '#8d6e63', line: '#5d4037', react: '✏️' },
-      sofa:   { emoji: '🛋️', react: '😪' },
-      shelf:  { emoji: '📚', react: '📖' },
-      tv:     { emoji: '📺', react: '📺' },
-      bath:   { emoji: '🛁', react: '🫧' },
-      piano:  { emoji: '🎹', react: '🎵' },
-      plush:  { emoji: '🧸', react: '💕' },
-      flower: { emoji: '🌷', react: '🌸' },
-      fridge: { color: '#eceff1', line: '#90a4ae', emoji: '🧊', react: '🧊' },
+      chair: { reactMini: 'relax' }, desk: { reactMini: 'pencil' }, sofa: { reactMini: 'sleepy' }, shelf: { reactMini: 'book' },
+      tv: { reactMini: 'tv' }, bath: { reactMini: 'bubbles' }, piano: { reactMini: 'note' }, plush: { reactMini: 'love' },
+      flower: { reactMini: 'blossom' }, fridge: { reactMini: 'fridge' },
       // ゲームセンターの景品
-      bigBear:     { emoji: '🐻', react: '🤗' },
-      robot:       { emoji: '🤖', react: '💬' },
-      gameConsole: { emoji: '🎮', react: '👾' },
-      mirrorBall:  { emoji: '🪩', react: '🎵' },
-      dino:        { emoji: '🦖', react: '🦖' },
-      ball:        { emoji: '⚽', react: '⚽' },
-      yarn:        { emoji: '🧶', react: '🧶' },
-      frisbee:     { emoji: '🥏', react: '🥏' },
+      bigBear: { reactMini: 'hug' }, robot: { reactMini: 'chat' }, gameConsole: { reactMini: 'game' }, mirrorBall: { reactMini: 'note' },
+      dino: { reactMini: 'dino' }, ball: { reactMini: 'ball' }, yarn: { reactMini: 'yarn' }, frisbee: { reactMini: 'frisbee' },
     },
-    // ゲームセンター
-    crane:    { color: '#f48fb1', line: '#c2185b', emoji: '🕹️', glass: '#e1f5fe' },
-    gift:     { emoji: '🎁' },
-    // ガシャポン
-    gachaPet:    { color: '#81d4fa', line: '#0277bd', emoji: '🐾' },
-    gachaTown:   { color: '#a5d6a7', line: '#2e7d32', emoji: '🧑' },
-    gachaFood:   { color: '#ffcc80', line: '#ef6c00', emoji: '🍔' },
-    gachaGlass:  '#ffffffcc',
-    figureShelf: { color: '#a1887f', line: '#5d4037', board: '#d7ccc8' },
-    capsule:     { top: '#ef5350', bottom: '#fafafa', line: '#9e9e9e' },
-    pedestal:    '#9e9e9e',
-    pedestalGold: '#ffc107',
-    newMark:     'NEW',
+    // ガシャのフィギュア → ミニ絵
     figures: {
-      figDog: { emoji: '🐕' }, figCat: { emoji: '🐈' }, figRabbit: { emoji: '🐇' }, figHamster: { emoji: '🐹' },
-      figHedgehog: { emoji: '🦔' }, figMouse: { emoji: '🐁' }, figParakeet: { emoji: '🦜' }, figTurtle: { emoji: '🐢' },
-      figBurgerClerk: { emoji: '🧑‍🍳' }, figPetClerk: { emoji: '🧑‍🌾' }, figFurnitureClerk: { emoji: '🧑‍🔧' },
-      figGrandma: { emoji: '👵' }, figGrandpa: { emoji: '👴' }, figKid: { emoji: '👧' },
-      figBurger: { emoji: '🍔' }, figBun: { emoji: '🍞' }, figPatty: { emoji: '🥩' }, figCheese: { emoji: '🧀' },
-      figLettuce: { emoji: '🥬' }, figBone: { emoji: '🦴' },
-      trophyPet: { emoji: '🏆' }, trophyTown: { emoji: '🏆' }, trophyFood: { emoji: '🏆' },
+      figDog: { mini: 'dog' }, figCat: { mini: 'cat' }, figRabbit: { mini: 'rabbit' }, figHamster: { mini: 'hamster' },
+      figHedgehog: { mini: 'hedgehog' }, figMouse: { mini: 'mouse' }, figParakeet: { mini: 'parakeet' }, figTurtle: { mini: 'turtle' },
+      figBurgerClerk: { mini: 'clerkBurger' }, figPetClerk: { mini: 'clerkPet' }, figFurnitureClerk: { mini: 'clerkFurniture' },
+      figGrandma: { mini: 'grandma' }, figGrandpa: { mini: 'grandpa' }, figKid: { mini: 'kid' },
+      figBurger: { mini: 'burger' }, figBun: { mini: 'bun' }, figPatty: { mini: 'patty' }, figCheese: { mini: 'cheese' },
+      figLettuce: { mini: 'lettuce' }, figBone: { mini: 'food' },
+      trophyPet: { mini: 'trophy' }, trophyTown: { mini: 'trophy' }, trophyFood: { mini: 'trophy' },
     },
+    // 絵の中の置き場所（ドット。絵の左上から）: クレーン台のガラスの中の景品、かざりだなの3段
+    // craneSlots は景品のミニ絵の左上、shelfSlots はフィギュアの台座の下の真ん中
+    layout: { craneSlots: [[2, 7], [7, 6], [4, 9]], shelfSlots: [[5, 11], [11, 11], [8, 22]] },
+    grassVariants: 5,
     trickLabels: { spin: 'くるっと まわる', jump: 'ジャンプ' },
+  };
+})(window.Game = window.Game || {});
+</script>
+<script>
+// 人とペットの絵。住人は「体の型 ＋ 髪型」を重ね、髪・肌・服の色を差し替えて組み立てる（設計書 2026-11-06 3節）
+// 格子の中の置き換え用の文字: 肌 + -（明るい・暗い）/ 髪 ! ?（明るい・暗い）/ 上の服 = ~ / 下の服 ^ _
+// ルール側（residents.js）が使うのは G.looks（選べる数の表と、ランダムに決める・古い絵文字から置き換える）だけ
+(function (G) {
+  // 色の組み合わせ（[明るい, 暗い]。色の文字は sprites.js の PAL）
+  const HAIR_COLORS = [['k', 'a'], ['2', '1'], ['n', 'm'], ['l', 'k'], ['S', 'N'], ['8', '7'], ['9', '8']];
+  const ELDER_HAIR = [5, 6];          // お年寄りは しろ・グレー
+  const YOUNG_HAIR = [0, 1, 2, 3, 4];
+  const SKINS = [['%', '@'], ['@', 'm'], ['m', 'l']];
+  const TOPS = [['f', 'e'], ['L', 'K'], ['v', 'u'], ['i', 'h'], ['V', 'U'], ['P', 'O'], ['M', 'L']];
+  const BOTTOMS = [['J', 'I'], ['k', 'a'], ['2', '1'], ['K', 'J']];
+  const HAIRS = { adult: ['short', 'long', 'plain'], elder: ['bun', 'thin'], kid: ['short', 'twin'] };
+  const BODIES = Object.keys(HAIRS);
+  // 主人公: 住人と同じ組み立て。上の服は住人には出ない色（オレンジ）
+  const PLAYER = { body: 'kid', hair: 'short', hairColor: 0, skin: 0, top: -1, bottom: 3 };
+  const PLAYER_TOP = ['h', 'g'];
+
+  // 古い保存（版 5 まで）の絵文字 → 型と髪型（設計書 5節の表）。色は住人の id から決める
+  // 順に 女の人・男の人・おばあさん・おじいさん・女の子・男の子・人・金の髪の人（src に絵文字を置かないので、文字の番号で書く）
+  const FROM_EMOJI = {
+    '\u{1F469}': ['adult', 'long'], '\u{1F468}': ['adult', 'short'], '\u{1F475}': ['elder', 'bun'], '\u{1F474}': ['elder', 'thin'],
+    '\u{1F467}': ['kid', 'twin'], '\u{1F466}': ['kid', 'short'], '\u{1F9D1}': ['adult', 'plain'], '\u{1F471}': ['adult', 'short', 2],
+  };
+
+  const pick = (rng, arr) => arr[Math.floor(rng() * arr.length)];
+  const idx = (rng, n) => Math.floor(rng() * n);
+
+  function random(rng) {
+    const body = pick(rng, BODIES);
+    return {
+      body, hair: pick(rng, HAIRS[body]),
+      hairColor: pick(rng, body === 'elder' ? ELDER_HAIR : YOUNG_HAIR),
+      skin: idx(rng, SKINS.length), top: idx(rng, TOPS.length), bottom: idx(rng, BOTTOMS.length),
+    };
+  }
+
+  function fromEmoji(ch, id) {
+    const [body, hair, fixedHair] = FROM_EMOJI[ch] || ['adult', 'plain'];
+    const n = Math.abs(id | 0);
+    const hc = body === 'elder' ? ELDER_HAIR : YOUNG_HAIR;
+    return {
+      body, hair, hairColor: fixedHair != null ? fixedHair : hc[n % hc.length],
+      skin: n % SKINS.length, top: (n * 3) % TOPS.length, bottom: (n * 5) % BOTTOMS.length,
+    };
+  }
+
+  // 保存から読んだ見た目をそろえる（古い絵文字は置き換え、おかしい値は直す）
+  function normalize(look, id) {
+    if (typeof look === 'string' || !look || typeof look !== 'object') return fromEmoji(look, id);
+    const L = { ...look };
+    if (!HAIRS[L.body]) L.body = 'adult';
+    if (!HAIRS[L.body].includes(L.hair)) L.hair = HAIRS[L.body][0];
+    const ok = (v, n) => Number.isInteger(v) && v >= 0 && v < n;
+    if (!ok(L.hairColor, HAIR_COLORS.length)) L.hairColor = 0;
+    if (!ok(L.skin, SKINS.length)) L.skin = 0;
+    if (!ok(L.top, TOPS.length)) L.top = 0;
+    if (!ok(L.bottom, BOTTOMS.length)) L.bottom = 0;
+    return L;
+  }
+
+  // 置き換え用の文字 → 色の文字
+  function colorMap(look) {
+    const hc = HAIR_COLORS[look.hairColor] || HAIR_COLORS[0], sk = SKINS[look.skin] || SKINS[0];
+    const tp = look.top === -1 ? PLAYER_TOP : TOPS[look.top] || TOPS[0], bt = BOTTOMS[look.bottom] || BOTTOMS[0];
+    return { '+': sk[0], '-': sk[1], '!': hc[0], '?': hc[1], '=': tp[0], '~': tp[1], '^': bt[0], '_': bt[1] };
+  }
+
+  G.looks = { random, fromEmoji, normalize, colorMap, PLAYER, HAIRS, BODIES, HAIR_COLORS, SKINS, TOPS, BOTTOMS, FROM_EMOJI };
+
+  // ---- 絵 ----
+  // G.people.body[型][向き] = { stand, walk: [格子, 格子], headDy, waist }（向き: down 前 / up 後ろ / side 横（右向き。左は反転））
+  //   16×24。頭（11 行）＋体。headDy: 大人の頭の位置から何行下か（髪型をその分ずらして重ねる）。waist: 立ち姿のゆれで下げる行の境
+  // G.people.hair[髪型][向き] = 格子（大人の頭の位置で描く。'.' は体のまま）
+  // 色: N 輪郭 / 0 目 / Z ほっぺ / a くつ / + - 肌 / ! ? 髪 / = ~ 上の服 / ^ _ 下の服
+
+  // 頭（はげ頭。髪は重ねる）
+  const HEAD = {
+    down: [
+      '.....NNNNNN.....',
+      '...NN++++++NN...',
+      '..N++++++++++N..',
+      '.N++++++++++++N.',
+      '.N++++++++++++N.',
+      '.N++++++++++++N.',
+      '.N+++0++++0+++N.',
+      '.N+++0++++0+++N.',
+      '.N++Z++++++Z++N.',
+      '..N-++++++++-N..',
+      '...NN------NN...',
+    ],
+    up: [
+      '.....NNNNNN.....',
+      '...NN++++++NN...',
+      '..N++++++++++N..',
+      '.N++++++++++++N.',
+      '.N++++++++++++N.',
+      '.N++++++++++++N.',
+      '.N++++++++++++N.',
+      '.N++++++++++++N.',
+      '.N++++++++++++N.',
+      '..N-++++++++-N..',
+      '...NN------NN...',
+    ],
+    side: [
+      '.....NNNNNN.....',
+      '...NN++++++NN...',
+      '..N++++++++++N..',
+      '.N++++++++++++N.',
+      '.N++++++++++++N.',
+      '.N++++++++++++N.',
+      '.N+++++++++0++N.',
+      '.N+++++++++0++N.',
+      '.N++++++++++Z+N.',
+      '..N-+++++++++N..',
+      '...NN------NN...',
+    ],
+  };
+  // 体（頭の下）。立ち・歩き2コマ
+  const TORSO = {
+    adult: {
+      down: {
+        stand: ['....N======N....', '...N========N...', '..N=~======~=N..', '..N+N======N+N..', '...NN~~~~~~NN...',
+          '....N^^^^^^N....', '....N^^^^^^N....', '....N^^NN^^N....', '....NaaNNaaN....', '....NNNNNNNN....'],
+        walk: [
+          ['....N======N....', '...N========N...', '..N=~======~=N..', '..N+N======N+N..', '...NN~~~~~~NN...',
+            '....N^^^^^^N....', '....N^^^^^^N....', '....N^^NNaaN....', '....NaaNNNNN....', '....NNNN........'],
+          ['....N======N....', '...N========N...', '..N=~======~=N..', '..N+N======N+N..', '...NN~~~~~~NN...',
+            '....N^^^^^^N....', '....N^^^^^^N....', '....NaaNN^^N....', '....NNNNNaaN....', '........NNNN....'],
+        ],
+      },
+      up: {
+        stand: ['....N======N....', '...N========N...', '..N=========~N..', '..N+N~~~~~~N+N..', '...NN~~~~~~NN...',
+          '....N^^^^^^N....', '....N^^^^^^N....', '....N^^NN^^N....', '....NaaNNaaN....', '....NNNNNNNN....'],
+        walk: [
+          ['....N======N....', '...N========N...', '..N=========~N..', '..N+N~~~~~~N+N..', '...NN~~~~~~NN...',
+            '....N^^^^^^N....', '....N^^^^^^N....', '....N^^NNaaN....', '....NaaNNNNN....', '....NNNN........'],
+          ['....N======N....', '...N========N...', '..N=========~N..', '..N+N~~~~~~N+N..', '...NN~~~~~~NN...',
+            '....N^^^^^^N....', '....N^^^^^^N....', '....NaaNN^^N....', '....NNNNNaaN....', '........NNNN....'],
+        ],
+      },
+      side: {
+        stand: ['.....N=====N....', '....N======N....', '....N==++==N....', '....N=~++~~N....', '.....N~~~~N.....',
+          '.....N^^^^N.....', '.....N^^^^N.....', '.....N^^^^N.....', '.....NaaaaaN....', '.....NNNNNNN....'],
+        walk: [
+          ['.....N=====N....', '....N======N....', '...N++=====N....', '...N+N~~~~~N....', '.....N~~~~N.....',
+            '.....N^^^^N.....', '....N^^NN^^N....', '...N^^N..N^^N...', '...NaaN..NaaaN..', '...NNNN..NNNNN..'],
+          ['.....N=====N....', '....N======N....', '....N=====++N...', '....N~~~~~N+N...', '.....N~~~~N.....',
+            '.....N^^^^N.....', '.....N^^^^N.....', '.....N^^^^N.....', '.....NaaaaaN....', '.....NNNNNNN....'],
+        ],
+      },
+    },
+  };
+  // お年寄り: 大人より少し小さく（頭が1行下）。体は大人と同じ形で、1行短い
+  // 子ども: 頭が3行下、体は短い
+  const cut = (rows, drop) => rows.filter((_, i) => !drop.includes(i));
+  const shrink = (dirs, drop) => {
+    const out = {};
+    for (const [d, e] of Object.entries(dirs)) out[d] = { stand: cut(e.stand, drop), walk: e.walk.map((w) => cut(w, drop)) };
+    return out;
+  };
+  TORSO.elder = shrink(TORSO.adult, [6]);
+  TORSO.kid = shrink(TORSO.adult, [1, 5, 6]);
+  const BODY_TOP = { adult: 3, elder: 4, kid: 6 };
+  const WAIST = { adult: 18, elder: 18, kid: 19 };
+
+  const blank = (n) => Array.from({ length: n }, () => '.'.repeat(16));
+  const body = {};
+  for (const b of Object.keys(TORSO)) {
+    body[b] = {};
+    for (const d of ['down', 'up', 'side']) {
+      const t = TORSO[b][d], top = blank(BODY_TOP[b]), head = HEAD[d];
+      body[b][d] = {
+        stand: top.concat(head, t.stand), walk: t.walk.map((w) => top.concat(head, w)),
+        headDy: BODY_TOP[b] - 3, waist: WAIST[b],
+      };
+    }
+  }
+
+  // 髪型（大人の頭の位置。上から 13 行）
+  const HAIR = {
+    short: {
+      down: ['................', '................', '................',
+        '.....NNNNNN.....', '...NN!!!!!!NN...', '..N!!!!!!!!!!N..', '.N!!!!!!!!!!!?N.', '.N!!!!!!!!!!!?N.',
+        '.N!!!++!!++!!?N.', '.N!?..........N.', '.N?...........N.'],
+      up: ['................', '................', '................',
+        '.....NNNNNN.....', '...NN!!!!!!NN...', '..N!!!!!!!!!!N..', '.N!!!!!!!!!!!?N.', '.N!!!!!!!!!!!?N.',
+        '.N!!!!!!!!!!!?N.', '.N!!!!!!!!!!!?N.', '.N?!!!!!!!!!??N.', '.N??!!!!!!!!??N.', '..N??????????N..'],
+      side: ['................', '................', '................',
+        '.....NNNNNN.....', '...NN!!!!!!NN...', '..N!!!!!!!!!!N..', '.N!!!!!!!!!!!!N.', '.N?!!!!!!!!!!!N.',
+        '.N??!!!!!++!!!N.', '.N??!!.........N', '.N??!...........', '.N??............', '..N?............'],
+    },
+    long: {
+      down: ['................', '................', '................',
+        '.....NNNNNN.....', '...NN!!!!!!NN...', '..N!!!!!!!!!!N..', '.N!!!!!!!!!!!?N.', '.N!!!!!!!!!!!?N.',
+        '.N!!!++!!++!!?N.', '.N!!..........?N', '.N!?.........??N', 'N!?N.........N?N', 'N??N.........N??N'.slice(0, 16),
+        'N??N........N??N', 'N??N........N??N', '.NN..........NN.'],
+      up: ['................', '................', '................',
+        '.....NNNNNN.....', '...NN!!!!!!NN...', '..N!!!!!!!!!!N..', '.N!!!!!!!!!!!?N.', '.N!!!!!!!!!!!?N.',
+        '.N!!!!!!!!!!!?N.', '.N!!!!!!!!!!!?N.', '.N!!!!!!!!!!!?N.', '.N!!!!!!!!!!!?N.', '.N?!!!!!!!!!!?N.',
+        '.N??!!!!!!!!??N.', '..N??????????N..', '...NNNNNNNNNN...'],
+      side: ['................', '................', '................',
+        '.....NNNNNN.....', '...NN!!!!!!NN...', '..N!!!!!!!!!!N..', '.N!!!!!!!!!!!!N.', '.N?!!!!!!!!!!!N.',
+        '.N??!!!!!++!!!N.', '.N??!!.........N', '.N??!!..........', '.N??!...........', '.N???N..........',
+        '.N???N..........', '..NNN...........'],
+    },
+    plain: {
+      down: ['................', '................', '................',
+        '.....NNNNNN.....', '...NN!!!!!!NN...', '..N!!!!!!!!!!N..', '.N!!!!!!!!!!!?N.', '.N!!!!!!!!!?+?N.',
+        '.N!!!!!!!!?+++N.', '.N!?..........N.', '.N?...........N.'],
+      up: null, side: null,
+    },
+    twin: {
+      down: ['................', '................', '................',
+        '.....NNNNNN.....', '...NN!!!!!!NN...', '..N!!!!!!!!!!N..', '.N!!!!!!!!!!!?N.', 'NN!!!!!!!!!!!?NN',
+        'N!N!!++!!++!!N!N', 'N!N?..........N!N'.slice(0, 16), 'N?N...........N?', '.N.............N'.slice(0, 16)],
+      up: null, side: null,
+    },
+    bun: {
+      down: ['......NNNN......', '.....N!!!?N.....', '.....N!!??N.....',
+        '....NNNNNNNN....', '...NN!!!!!!NN...', '..N!!!!!!!!!!N..', '.N!!!!!!!!!!!?N.', '.N!!!++++++!!?N.',
+        '.N!!++++++++!?N.', '.N!?..........N.', '.N?...........N.'],
+      up: ['......NNNN......', '.....N!!!?N.....', '.....N!!??N.....',
+        '....NNNNNNNN....', '...NN!!!!!!NN...', '..N!!!!!!!!!!N..', '.N!!!!!!!!!!!?N.', '.N!!!!!!!!!!!?N.',
+        '.N!!!!!!!!!!!?N.', '.N!!!!!!!!!!!?N.', '.N?!!!!!!!!!??N.', '.N??!!!!!!!!??N.', '..N??????????N..'],
+      side: ['................', '...NNN..........', '..N!!?N.........',
+        '..N!??NNNN......', '...NN!!!!!!NN...', '..N!!!!!!!!!!N..', '.N!!!!!!!!!!!!N.', '.N?!!!!!!!++++N.',
+        '.N??!!!!+++++.N.', '.N??!..........N', '.N??............', '..N?............'],
+    },
+    thin: {
+      down: ['................', '................', '................',
+        '................', '................', '................', '.N?..........?N.', '.N!?........?!N.',
+        '.N!?........?!N.', '.N!?........?!N.', '..N?........?N..'],
+      up: ['................', '................', '................',
+        '................', '................', '................', '................', '.N?..........?N.',
+        '.N!?........?!N.', '.N!!????????!!N.', '..N??????????N..'],
+      side: ['................', '................', '................',
+        '................', '................', '................', '................', '.N?.............',
+        '.N!?............', '.N!??...........', '..N?............'],
+    },
+  };
+  // まだ描いていない向きは、近い髪型の同じ向きで代わりに描く
+  HAIR.plain.up = HAIR.short.up; HAIR.plain.side = HAIR.short.side;
+  HAIR.twin.up = HAIR.long.up; HAIR.twin.side = HAIR.short.side;
+
+  G.people = { body, hair: HAIR };
+
+  // ---- 店員: 大人の前向きに、髪と帽子を重ねて作る（立ち・ゆれの2コマ。色はここで決める）----
+  const lay = (base, ...layers) => {
+    const out = base.map((r) => r.split(''));
+    for (const L of layers) L.forEach((r, y) => [...r].forEach((c, x) => { if (c !== '.' && out[y]) out[y][x] = c; }));
+    return out.map((r) => r.join(''));
+  };
+  const swap = (rows, m) => rows.map((r) => r.replace(/[+\-!?=~^_]/g, (c) => m[c]));
+  const bobbed = (rows, waist) => ['.'.repeat(16)].concat(rows.slice(0, waist), rows.slice(waist + 1));
+  const HATS = {
+    chef: ['....NNNNNNNN....', '...N99999999N...', '...N99999998N...', '...N99999998N...', '...NN888888NN...'],
+    straw: ['................', '.....NNNNNN.....', '....NnnnnnnN....', '....NnnnnnnN....', '..NNffffffffNN..', '.NnnnnnnnnnnnnN.', '..NNNNNNNNNNNN..'],
+    cap: ['................', '................', '................', '.....NNNNNN.....', '...NNKKKKKKNN...', '..NKKKKKKKKKKN..', '.NKKKKKKKKKKKKN.', '.NNNNNNNNNNNNNN.', '..NLLLLLLLLLLN..'],
+  };
+  function clerk(hat, colors) {
+    const stand = swap(lay(body.adult.down.stand, HAIR.short.down, HATS[hat]), colors);
+    return { frames: [stand, bobbed(stand, WAIST.adult)] };
+  }
+  const SKIN0 = { '+': '%', '-': '@' };
+  Object.assign(G.sprites.img, {
+    clerkBurger: clerk('chef', { ...SKIN0, '!': 'k', '?': 'a', '=': '9', '~': '8', '^': 'J', '_': 'I' }),
+    clerkPet: clerk('straw', { '+': '@', '-': 'm', '!': 'n', '?': 'm', '=': 'v', '~': 'u', '^': 'k', '_': 'a' }),
+    clerkFurniture: clerk('cap', { ...SKIN0, '!': '2', '?': '1', '=': 'L', '~': 'K', '^': 'K', '_': 'J' }),
+  });
+
+  // ---- ペット（横向き・右向き。左は反転。立ち・歩き2コマ）----
+  const legs = (rows, ...last) => rows.slice(0, rows.length - last.length).concat(last);
+  const CAT = [
+    '................',
+    '................',
+    '.........N...N..',
+    '........NVN.NVN.',
+    '.......NmmmmmmmN',
+    '.......NmlmmmlmN',
+    '.......Nm0mmm0mN',
+    '.N.....Nm0mmm0mN',
+    'NmN....NZmmVmmZN',
+    'NmN.NNNNmmmmmmmN',
+    'NlNNmlmlmmmmmmN.',
+    '.NmmmlmlmmmmmmN.',
+    '..Nmmmmmmmmmm%N.',
+    '..Nlmmmmmmmm%%N.',
+    '..NmmNNNNNNmmN..',
+    '..NNNN....NNNN..',
+  ];
+  const HAMSTER = [
+    '..NN...NN...',
+    '.NVVNNNVVN..',
+    '.Nmmmmm09mN.',
+    'Nmmmmmm00mmN',
+    'Nmmmmmm%%%ZN',
+    'Nmmmmm%%%%%V',
+    'Nlmmm%%%%%%N',
+    '.Nlll%%%%%N.',
+    '..NNNNNNNN..',
+    '..N%N..N%N..',
+  ];
+  const DOG = [
+    '................',
+    '.........NNNNN..',
+    '........NnnnnnN.',
+    '.......NkNnn90nN',
+    '.......NkNnn00nN',
+    '.......NkNnnn%%N',
+    '........NNn%%%0N',
+    '.NN.....NnnnnNN.',
+    '.NnNNNNNnnnnnN..',
+    '..NnnnnnnnnnnnN.',
+    '..Nnnnnnn%%%%nN.',
+    '..NknnnnnnnnnkN.',
+    '..NnnNNNNNNnnN..',
+    '..NnnN....NnnN..',
+    '..NNNN....NNNN..',
+  ];
+  const RABBIT = [
+    '.......NN.NN....',
+    '......N9VN9VN...',
+    '......N9VN9VN...',
+    '......N9VN9VN...',
+    '......N999999N..',
+    '.....N99990099N.',
+    '.....N99990099N.',
+    '.....N9999Z99VN.',
+    '..NNNN99999999N.',
+    'N9N99999999999N.',
+    'N99999999999988N',
+    '.N8999999999988N',
+    '..N88888888888N.',
+    '..N99N....N99N..',
+    '..NNNN....NNNN..',
+  ];
+  const HEDGEHOG = [
+    '..N.N.N.....',
+    '.NaNaNaNN...',
+    'NakakakN%N..',
+    'NkakakN%%%N.',
+    'NakakaN%90%N',
+    'NkakakN%00%0',
+    'NakakakN%%N.',
+    '.NNNNNNNNN..',
+    '..N%N..N%N..',
+  ];
+  const MOUSE = [
+    '.......NN...',
+    '......NVVN..',
+    '...NNNN777N.',
+    '..N77777907N',
+    '.N777777007V',
+    'VN77777777N.',
+    '.VNNNNNNNN..',
+    '...N7N.N7N..',
+  ];
+  const PARAKEET = [
+    '...NNNN...',
+    '..NiiiiN..',
+    '.NiiiiiiN.',
+    '.Niii90hhN',
+    '.Niii00hN.',
+    '.NvviiiiN.',
+    'NvvvvvvvN.',
+    'NvuvvvvvN.',
+    'NvuuvvvN..',
+    '.NvuuvN...',
+    '..NuuN....',
+    '...NN.....',
+  ];
+  const TURTLE = [
+    '...NNNNNN.......',
+    '..NvuvvuvN..NNN.',
+    '.NvuvvuvvuN.NwwN',
+    'NuvvuvvuvvuNw0wN',
+    'NvuvvuvvuvvNwwwN',
+    'NNNNNNNNNNNNwwN.',
+    '.NwN.....NwN....',
+    '.NNN.....NNN....',
+  ];
+  const at = (rows, i, row) => rows.map((r, j) => (j === i ? row : r));
+  Object.assign(G.sprites.img, {
+    dog: { frames: [DOG,
+      legs(DOG, '.NnnNNNNNNNNnnN.', '.NnnN......NnnN', '.NNNN......NNNN').map((r) => r.padEnd(16, '.')).slice(0, 15),
+      legs(DOG, '...NnnNNNNnnN...', '...NnnN..NnnN...', '...NNNN..NNNN...')] },
+    rabbit: { frames: [RABBIT,
+      legs(RABBIT, '.N99N......N99N.', '.NNNN......NNNN.'),
+      legs(RABBIT, '...N99N..N99N...', '...NNNN..NNNN...')] },
+    hedgehog: { frames: [HEDGEHOG, legs(HEDGEHOG, '.N%N....N%N.'), legs(HEDGEHOG, '...N%NN%N...')] },
+    mouse: { frames: [MOUSE, legs(MOUSE, '..N7N...N7N.'), legs(MOUSE, '....N7NN7N..')] },
+    parakeet: { frames: [PARAKEET, at(PARAKEET, 7, 'NvuuvvvvN.'), at(at(PARAKEET, 6, 'NvvvvvvvN.'), 8, 'NvvuvvvN..')] },
+    turtle: { frames: [TURTLE, legs(TURTLE, 'NwN.......NwN...', 'NNN.......NNN...'), legs(TURTLE, '..NwN...NwN.....', '..NNN...NNN.....')] },
+    cat: { frames: [CAT,
+      legs(CAT, '.NmmNNNNNNNNmmN.', '.NNNN......NNNN.'),
+      legs(CAT, '...NmmNNNNmmN...', '...NNNN..NNNN...')] },
+    hamster: { frames: [HAMSTER,
+      legs(HAMSTER, '.N%N....N%N.'),
+      legs(HAMSTER, '...N%NN%N...')] },
+  });
+})(window.Game = window.Game || {});
+</script>
+<script>
+// 8×8 までの小さい絵（ミニ絵）・吹き出し・印・ぷにコンの玉・UI のアイコン（設計書 2026-11-06 3節）
+// ミニ絵は G.sprites.mini、16×16 の吹き出しやアイコンは G.sprites.img に足す
+(function (G) {
+  const S = G.sprites;
+  Object.assign(S.mini, {
+    // 自分のもの（自分のベッド）の星
+    star: [
+      '...i...',
+      '..NiN..',
+      'NNiiiNN',
+      'Niiiiin',
+      '.Niiin.',
+      '.NinNi.',
+      '.NN.NN.',
+    ].map((r) => r.replace(/n/g, 'h')),
+    // ---- 家具と景品 ----
+    chair: ['..NNNN..', '..NnnN..', '..NmmN..', '.NNNNNN.', '.NnnnnN.', '.NNNNNN.', '.Nk..kN.', '.NN..NN.'],
+    desk: ['........', 'NNNNNNNN', 'NnnnnnnN', 'NNNNNNNN', 'NkNkkNkN', 'NkNNNNkN', 'NkN..NkN', 'NNN..NNN'],
+    sofa: ['........', '.NNNNNN.', 'NNVVVVNN', 'NVNNNNVN', 'NVVVVVVN', 'NUUUUUUN', 'NNNNNNNN', '.S....S.'],
+    shelf: ['NNNNNNNN', 'NfLiKvYN', 'NkkkkkkN', 'NYviLfKN', 'NkkkkkkN', 'NLKfiYvN', 'NkkkkkkN', 'NNNNNNNN'],
+    tv: ['.N..N...', '..NN....', 'NNNNNNNN', 'NIKIIN6N', 'NIIIIN6N', 'NNNNNNNN', '.N....N.'],
+    bath: ['......N.', '.....N7N', 'NNNNNNNN', 'N9MM9M8N', 'NNNNNNNN', 'N999998N', '.N8888N.', '..N..N..'],
+    piano: ['NNNNNNNN', 'N211111N', 'NNNNNNNN', 'N909909N', 'N999999N', 'NNNNNNNN', 'N1N..N1N', 'NNN..NNN'],
+    plush: ['.N....N.', 'NlNNNNlN', 'NllllllN', 'Nl0ll0lN', 'Nll%%llN', '.NllllN.', 'NlNllNlN', '.NN..NN.'],
+    flower: ['..N.N...', '.NfNfN..', '.NfffN..', '..NuN...', '.v.u....', '..NNNN..', '..NllN..', '...NN...'],
+    fridge: ['.NNNNNN.', '.N99N8N.', '.N9998N.', '.NNNNNN.', '.N99N8N.', '.N99N8N.', '.N8888N.', '.NNNNNN.'],
+    bigBear: ['.N....N.', 'NkNNNNkN', 'NkkkkkkN', 'Nk0kk0kN', 'Nkk%%kkN', '.NYYYYN.', 'NkNkkNkN', '.NN..NN.'],
+    robot: ['...i....', '.NNNNNN.', '.NM88MN.', '.N8NN8N.', '.NNNNNN.', 'N7N77N7N', 'N7N77N7N', '.NN..NN.'],
+    gameConsole: ['........', '.NN..NN.', 'N22NN22N', 'NNN22Y2N', 'N2N2Y22N', 'N222222N', 'N2NNNN2N', '.N....N.'],
+    mirrorBall: ['..NNNN..', '.NMM88N.', 'NM88779N', 'NM88779N', 'N87799MN', 'N87799MN', '.N99MMN.', '..NNNN..'],
+    dino: ['....NNN.', '...Nv0vN', '...NvvvN', 'N..NvNN.', 'NvNvvvN.', '.NvvvvN.', '..NvNvN.', '..NN.NN.'],
+    ball: ['..NNNN..', '.N0990N.', 'N999999N', 'N990099N', 'N900008N', 'N990088N', '.N0880N.', '..NNNN..'],
+    yarn: ['..NNNN..', '.NVVUVN.', 'NVUVVUVN', 'NVVUVVUN', 'NUVVUVVN', 'NVUVVUVN', '.NVUVVN.', '..NNNN..'],
+    frisbee: ['.NNNNNN.', 'NLMMMMLN', 'NLMMMMLN', '.NNNNNN.'],
+    // ---- ペット ----
+    cat: ['N......N', 'NmN..NmN', 'NmmNNmmN', 'Nm0mm0mN', 'NZmVVmZN', 'NmmmmmmN', '.NmmmmN.', '..NNNN..'],
+    hamster: ['.NN..NN.', 'NVVNNVVN', 'NmmmmmmN', 'Nm0mm0mN', 'N%%VV%%N', 'N%%%%%%N', '.N%%%%N.', '..NNNN..'],
+    dog: ['NN....NN', 'NkNNNNkN', 'NknnnnkN', 'Nk0nn0kN', 'NNn00nNN', '.Nn%%nN.', '.NnnnnN.', '..NNNN..'],
+    rabbit: ['.N9NN9N.', '.NVNNVN.', 'N999999N', 'N909909N', 'NZ9VV9ZN', 'N999999N', '.N9999N.', '..NNNN..'],
+    hedgehog: ['.N.N.N..', 'NaNaNaN.', 'NaaaaaaN', 'Naa%%%%N', 'Na%0%%0N', 'Na%%%%0N', '.NaaaaN.', '..N..N..'],
+    mouse: ['NN....NN', 'NVN..NVN', 'NVNNNNVN', '.N7777N.', 'N707707N', 'N77VV77N', '.N7777N.', '..NNNN..'],
+    parakeet: ['..NNNN..', '.NiiiiN.', 'Ni0ii0iN', 'NiihhiiN', 'NvvvvvvN', 'NvvvvvvN', '.NvuuvN.', '..NNNN..'],
+    turtle: ['..NNNN..', '.NwwwwN.', 'Nw0ww0wN', 'NwwwwwwN', '.NwwwwN.', 'NNuvvuNN', 'NuvuuvuN', '.NNNNNN.'],
+    // ---- 人のフィギュア ----
+    grandma: ['...NN...', '..N88N..', '.N8888N.', 'N8%%%%8N', 'N%0%%0%N', 'NZ%%%%ZN', '.NVVVVN.', '.NNNNNN.'],
+    grandpa: ['........', '..NNNN..', '.N%%%%N.', 'N8%%%%8N', 'N%0%%0%N', 'N%%88%%N', '.N4444N.', '.NNNNNN.'],
+    kid: ['..NNNN..', '.NkkkkN.', 'NkkkkkkN', 'Nk%%%%kN', 'N%0%%0%N', 'NZ%%%%ZN', '.NffffN.', '.NNNNNN.'],
+    clerkBurger: ['.NNNNNN.', '.N9999N.', '.N8888N.', 'N%%%%%%N', 'N%0%%0%N', 'NZ%%%%ZN', '.N9999N.', '.NNNNNN.'],
+    clerkPet: ['..NNNN..', '.NnnnnN.', 'NffffffN', 'NNnnnnNN', 'N@0@@0@N', 'NZ@@@@ZN', '.NvvvvN.', '.NNNNNN.'],
+    clerkFurniture: ['..NNNN..', '.NKKKKN.', 'NKKKKKKN', 'NNNNNNNN', 'N%0%%0%N', 'NZ%%%%ZN', '.NLLLLN.', '.NNNNNN.'],
+    // ---- 使っている家具の反応の印 ・ UI のアイコン（文字の中に {hammer} のように書く）----
+    relax: ['..NNNN..', '.NiiiiN.', 'NiiiiiiN', 'NiNNiNNN', 'NZiiiiZN', 'NiiNNiiN', '.NhhhhN.', '..NNNN..'],
+    sleepy: ['LLLL....', '..L.....', '.L......', 'LLLL....', '....LLL.', '.....L..', '....LLL.', '........'],
+    pencil: ['......NN', '.....NVN', '....NiN.', '...NiN..', '..NiN...', '.NnN....', '.N0N....', 'NN......'],
+    book: ['........', 'NNN..NNN', 'N99NN99N', 'N88N988N', 'N99N999N', 'N88N888N', 'NNNNNNNN', '........'],
+    bubbles: ['..NN....', '.N9MN...', '.NMMN.N.', '..NN.N9N', '......N.', '.NN.....', 'N9MN....', '.NN.....'],
+    note: ['...NNNNN', '...N...N', '...N...N', '..NN..NN', '.NNN.NNN', '.NN..NN.', '........', '........'],
+    love: ['.NN.NN..', 'NYYNYYN.', 'NY9YYYN.', '.NYYYN..', '..NYNNN.', '...NNVVN', '....NVN.', '.....N..'],
+    blossom: ['...N....', '..NVN...', '.NVVVN..', 'NVViVVN.', '.NVVVN..', '..N.N...', '........', '........'],
+    hug: ['..NNNN..', '.NiiiiN.', 'Ni0ii0iN', 'NiiiiiiN', 'NiNiiNiN', 'N%NNNN%N', 'N%%NN%%N', '.NN..NN.'],
+    chat: ['NNNNNNNN', 'N999999N', 'N9N9N99N', 'N999999N', 'NNNNNNNN', '.N9N....', '.NN.....'],
+    game: ['..P..P..', '.PPPPPP.', 'PP0PP0PP', 'PPPPPPPP', 'P.PPPP.P', 'P.P..P.P'],
+    erase: ['........', 'NNNNNNNN', 'NiiiiiiN', 'NihiihiN', 'NiiiiiiN', 'NvvvvvvN', 'NNNNNNNN', '........'],
+    hand: ['..N.N.N.', '.N%N%N%N', '.N%N%N%N', 'NN%%%%%N', 'N%%%%%%N', '.N%%%%%N', '..N%%%N.', '...NNN..'],
+    frame: ['NNNNNNNN', 'NkkkkkkN', 'NkMMMMkN', 'NkMMwMkN', 'NkwwwwkN', 'NkkkkkkN', 'NNNNNNNN'],
+    hammer: ['.NNNN...', 'N7777N..', 'N7NN7N..', '.NNNNN..', '...NkN..', '...NkN..', '...NkN..', '...NNN..'],
+    check: ['......NN', '.....NvN', 'NN..NvN.', 'NvNNvN..', '.NvvN...', '..NN....'],
+    home: ['...NN...', '..NffN..', '.NffffN.', 'NffffffN', 'NNNNNNNN', '.N9NN9N.', '.N9Nk9N.', '.NNNNNN.'],
+    gear: ['..N..N..', '.NN77NN.', 'N777777N', 'N77NN77N', 'N77NN77N', 'N777777N', '.NN77NN.', '..N..N..'],
+    full: ['NNN..NNN', 'N......N', 'N......N', '........', '........', 'N......N', 'N......N', 'NNN..NNN'],
+    save: ['NNNNNNN.', 'NK9999KN', 'NK9999KN', 'NKKKKKKN', 'NK8888KN', 'NK8NN8KN', 'NNNNNNNN'],
+    load: ['NNN.....', 'NiiNNNN.', 'NiiiiiiN', 'NNNNNNNN', 'NnnnnnnN', 'NnnnnnnN', 'NNNNNNNN'],
+    phone: ['.NNNNN.', '.N999N.', '.N999N.', '.N999N.', '.N999N.', '.N999N.', '.NN0NN.', '.NNNNN.'],
+    phoneSide: ['........', 'NNNNNNNN', 'N99999NN', 'N999990N', 'N99999NN', 'NNNNNNNN'],
+    arrow: ['...NN...', '...NvN..', 'NNNNvvN.', 'NvvvvvvN', 'NNNNvvN.', '...NvN..', '...NN...'],
+    yum: ['..NNNN..', '.NiiiiN.', 'NiiiiiiN', 'Ni0ii0iN', 'NiiiiiiN', 'NiNNNNiN', '.NhNVN..', '..NNNN..'],
+    dotOn: ['.NNNN.', 'NffffN', 'NfffeN', 'NffeeN', '.NNNN.'],
+    dotOff: ['.NNNN.', 'N9999N', 'N9998N', 'N9988N', '.NNNN.'],
+    menu: ['NNNNNNN', '.......', 'NNNNNNN', '.......', 'NNNNNNN'],
+    // ---- 食べ物 ----
+    burger: ['.NNNNNN.', 'NnnnnnnN', 'Nn9nn9nN', 'NvvvvvvN', 'NaaaaaaN', 'NmmmmmmN', '.NNNNNN.'],
+    bun: ['..NNNN..', '.NnnnnN.', 'NnnsnnnN', 'NnnnnnnN', 'NmmmmmmN', '.NNNNNN.'],
+    patty: ['.NNNNN..', 'NbbbbbN.', 'Nbb9bbbN', 'NabbbbaN', '.NaaaaN.', '..NNNN..'],
+    cheese: ['....NNN.', '..NNiiiN', 'NNiiihiN', 'NihiiiiN', 'NiiiihiN', 'NNNNNNNN'],
+    lettuce: ['.N.NN.N.', 'NvNvvNvN', 'NvvvvvvN', 'NuvvvvuN', '.NuuuuN.', '..NNNN..'],
+    food: ['NN....NN', 'N9NNNN9N', '.N9999N.', 'N8NNNN8N', 'NN....NN'],
+    meat: ['...NNNN.', '..NbbbbN', '.NbbbbbN', '.NbbbbaN', 'N9NaaaN.', 'N99NNN..', '.NN.....'],
+    // ---- しるし ----
+    coin: ['.NNNNN.', 'NiisiiN', 'NisiihN', 'NiiiihN', 'NiiihhN', '.NNNNN.'],
+    heart: ['.NN.NN.', 'N9YNYYN', 'NYYYYYN', '.NYYYN.', '..NYN..', '...N...'],
+    paw: ['.k...k.', '.k.k.k.', '...k...', '.kkkkk.', 'kkkkkkk', '.kk.kk.'],
+    sparkle: ['...s...', '...s...', '..sis..', 'ssi9iss', '..sis..', '...s...', '...s...'],
+    gift: ['.N.NN.N.', 'NYNYYNYN', 'NNNYYNNN', 'NLLYYLLN', 'NLLYYLLN', 'NKKYYKKN', 'NKKYYKKN', 'NNNNNNNN'],
+    toGo: ['..NNNN..', '.N9999N.', 'NNNNNNNN', '.N9ff9N.', '.N9999N.', '.N8888N.', '.NNNNNN.'],
+    capsule: ['..NNN..', '.NffeN.', 'NffffeN', 'NNNNNNN', 'N99998N', '.N988N.', '..NNN..'],
+    pedestal: ['NNNNNNNN', 'N777776N', 'NNNNNNNN'],
+    pedestalGold: ['NNNNNNNN', 'NiiiiihN', 'NNNNNNNN'],
+    trophy: ['NNNNNNNN', 'NiisiihN', '.NiiihN.', '..NihN..', '...hN...', '..NiiN..', '.NhhhhN.', '.NNNNNN.'],
+    // 主人公の頭の上の印（下向きの三角）
+    playerMark: [
+      'NNNNNNN',
+      'NgggggN',
+      '.NgggN.',
+      '..NgN..',
+      '...N...',
+    ],
+  });
+  // ---- 台のミニ絵（住人が遊んでいるときの印）----
+  const machineMini = (c) => ['..NNNN..', '.NMfLMN.', '.NMiYMN.', 'NNNNNNNN', 'N' + c + c + c + c + c + c + 'N', 'N' + c + c + 'NN' + c + c + 'N', 'N' + c + c + c + c + c + c + 'N', 'NNNNNNNN'];
+  Object.assign(S.mini, {
+    gachaPet: machineMini('L'), gachaTown: machineMini('v'), gachaFood: machineMini('h'),
+    crane: ['NNNNNNNN', 'NMMNMMMN', 'NM9NMMMN', 'NMNNNMMN', 'NMMMMMMN', 'NNNNNNNN', 'NVVNVVYN', 'NNNNNNNN'],
+  });
+
+  // ---- 店のカウンター（看板にミニ絵）----
+  const M = S.mini, mk = S.make;
+  Object.assign(S.img, {
+    counter: mk.counter('h', 'g', M.burger),
+    petCounter: mk.counter('M', 'L', M.paw),
+    furnitureCounter: mk.counter('R', 'Q', M.sofa.slice(1, 7)),
+  });
+
+  // ---- ガシャ台（16×24）: 上にガラスのドームとカプセル、下に看板とハンドル ----
+  const DOME = ['....NNNNNNNN....', '...N9MMMMMMMN...', '..N9MMMMMMMMMN..', '.N9MMMMMMMMMMMN.', '.NMMMMMMMMMMMMN.',
+    '.NMffMMMMLLMMMN.', '.NMffMiiMLLMMMN.', '.NMMMMiiMMMvvMN.', '.NMMMYYMPPMvvMN.', '.NMMMYYMPPMMMMN.', '.NNNNNNNNNNNNNN.'];
+  function gacha(c, d, icon) {
+    const row = (mid) => 'N' + c + c + mid + c + c + 'N';
+    const rows = DOME.concat(['NNNNNNNNNNNNNNNN', 'N' + c.repeat(14) + 'N']);
+    for (let i = 0; i < 7; i++) rows.push(row('9999999999'));
+    rows.push('N' + c.repeat(5) + 'NNNN' + c.repeat(5) + 'N', 'N' + c.repeat(4) + 'N9988N' + c.repeat(4) + 'N',
+      'N' + d.repeat(5) + 'NNNN' + d.repeat(5) + 'N', 'NNNNNNNNNNNNNNNN');
+    return mk.stamp(rows, 4, 13, icon);
+  }
+  Object.assign(S.img, {
+    gachaPet: gacha('L', 'K', M.paw),
+    gachaTown: gacha('v', 'u', M.kid),
+    gachaFood: gacha('h', 'g', M.burger),
+    // クレーン台（16×24）: 上にガラス（中に景品のミニ絵。sprites.js の layout.craneSlots）、下に操作盤と取り出し口
+    crane: [
+      'NNNNNNNNNNNNNNNN',
+      'NViViViViViViViN',
+      'NNNNNNNNNNNNNNNN',
+      'NMMMMMMNMMMMMMMN',
+      'NM9MMMMNMMMMMMMN',
+      'NM9MMMNNNMMMMMMN',
+      'NMMMMNMMMNMMMMMN',
+      'NMMMMMMMMMMMMMMN',
+      'NMMMMMMMMMMMMMMN',
+      'NMMMMMMMMMMMMMMN',
+      'NMMMMMMMMMMMMMMN',
+      'NMMMMMMMMMMMMMMN',
+      'NMMMMMMMMMMMMMMN',
+      'NMMMMMMMMMMMMMMN',
+      'NMMMMMMMMMMMMMMN',
+      'NNNNNNNNNNNNNNNN',
+      'NVVVVVVVVVVVVVUN',
+      'NVVVNVVVVVVVVVUN',
+      'NVVNNNVVVVVYYVUN',
+      'NUUUUUUUUUUUUUUN',
+      'NVVVVVNNNNVVVVUN',
+      'NVVVVVN00NVVVVUN',
+      'NUUUUUNNNNUUUUUN',
+      'NNNNNNNNNNNNNNNN',
+    ],
+    // クレーンゲームの画面のつめ（2倍で出す）
+    claw: [
+      '.......N........',
+      '.......N........',
+      '.....NNNNN......',
+      '....N77777N.....',
+      '....NNNNNNN.....',
+      '...N7N...N7N....',
+      '..N7N.....N7N...',
+      '..N7N.....N7N...',
+      '...N7N...N7N....',
+      '....NN...NN.....',
+    ],
+    // 考えごとの吹き出し（中にミニ絵。render.js の bubble）
+    bubble: [
+      '...NNNNNNNNNN...',
+      '.NN9999999999NN.',
+      'N99999999999999N',
+      'N99999999999999N',
+      'N99999999999999N',
+      'N99999999999999N',
+      'N99999999999999N',
+      'N99999999999999N',
+      'N99999999999999N',
+      'N89999999999998N',
+      '.NN8888888888NN.',
+      '...NNNNNNNNNN...',
+      '....NN..........',
+      '...N98N.........',
+      '....NN..........',
+    ],
+    // ぷにコンの玉（指で隠れるので、シンプルに）
+    joyKnob: [
+      '...NNNN...',
+      '.NN9999NN.',
+      '.N999999N.',
+      'N99999998N',
+      'N99999998N',
+      'N99999988N',
+      'N99999988N',
+      '.N998888N.',
+      '.NN8888NN.',
+      '...NNNN...',
+    ],
+  });
+
+  // つくるパレットの部品（ミニ絵）と、もどる（矢印の左右反対）
+  Object.assign(S.mini, {
+    floor: ['kkkkkkkk', 'knnmnnnk', 'knnmnnnk', 'kmmmmmmk', 'knnnnmnk', 'knnnnmnk', 'kllllllk', 'kkkkkkkk'],
+    wall: ['NNNNNNNN', 'N999999N', 'N998999N', 'N888888N', 'NLLLLLLN', 'NMMLMMMN', 'NMMMMLMN', 'NNNNNNNN'],
+    door: ['NNNNNNNN', 'N9NnnN9N', 'N9NnnN9N', 'N8NnnN8N', 'NLNnnNLN', 'NMNUUNMN', 'NMNVVNMN', 'NNNNNNNN'],
+    bed: ['NNNNNNNN', 'NkkkkkkN', 'N899998N', 'NVVVVVVN', 'NVUVVUVN', 'NVVVVVVN', 'NUUUUUUN', 'NN....NN'],
+    back: M.arrow.map((r) => [...r].reverse().join('')),
+  });
+
+  // アルバイトのハンバーガーの段（下から積む。1ドット重ねて並べる）
+  Object.assign(S.img, {
+    layerBunTop: ['....NNNNNNNN....', '..NNmmm9mmmmNN..', '.NmmmmmmmmmmmmN.', '.Nmm9mmmmm9mmmN.', 'NnnnnnnnnnnnnnnN', 'NNNNNNNNNNNNNNNN'],
+    layerBunBottom: ['NNNNNNNNNNNNNNNN', 'NnnnnnnnnnnnnnnN', 'NmmmmmmmmmmmmmmN', '.NllllllllllllN.', '..NNNNNNNNNNNN..'],
+    layerPatty: ['.NNNNNNNNNNNNNN.', 'NkkakkkkakkkkakN', 'NakkkkakkkkakkaN', '.NNNNNNNNNNNNNN.'],
+    layerCheese: ['NNNNNNNNNNNNNNNN', 'NiiiiiiiiiiiiiiN', '.NNNNiNNNNNNiNN.', '.....N......N...'],
+    layerLettuce: ['.N.NN.NN.NN.NN..', 'NvNvvNvvNvvNvvN.', 'NvvvvvvvvvvvvvvN', '.NuNNuNNuNNuNNN.'],
+  });
+})(window.Game = window.Game || {});
+</script>
+<script>
+// 文字の格子を、画面に出さない Canvas に焼く。色の差し替え・左右反転・重ね合わせ・ドット文字もここ
+// 写したもと: html-game の games/hoppe-dive/src/bake.js（コミット abc6a49、2026-11-06）。ハムスターの組み立てなど HOPPE DIVE だけのものは外した
+(function (G) {
+  const F = () => G.font;
+
+  const mk = (w, h) => { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; };
+
+  // rows: 文字列の配列（1文字 = 1色、'.' と ' ' は透明）
+  // opt: { map: {文字: 色の文字}, white: 全部白, flip: 左右反転, alpha: 全体の濃さ }
+  function bake(rows, opt = {}) {
+    const PAL = G.sprites.PAL;
+    const h = rows.length, w = Math.max(...rows.map((r) => r.length));
+    const c = mk(w, h), g = c.getContext('2d');
+    for (let y = 0; y < h; y++) for (let x = 0; x < rows[y].length; x++) {
+      let ch = rows[y][x];
+      if (ch === '.' || ch === ' ') continue;
+      if (opt.map && opt.map[ch] != null) ch = opt.map[ch];
+      const col = opt.white ? '#ffffff' : PAL[ch];
+      if (!col) continue;
+      g.fillStyle = col;
+      g.fillRect(opt.flip ? w - 1 - x : x, y, 1, 1);
+    }
+    if (opt.alpha != null) { g.globalCompositeOperation = 'destination-in'; g.fillStyle = `rgba(0,0,0,${opt.alpha})`; g.fillRect(0, 0, w, h); }
+    return c;
+  }
+
+  // 格子を重ねる（あとのものが上）。dx, dy で置く位置をずらせる。大きさは base に合わせる
+  function overlay(base, ...layers) {
+    const rows = base.map((r) => r.split(''));
+    for (const L of layers) {
+      if (!L) continue;
+      const { rows: lr, dx = 0, dy = 0 } = Array.isArray(L) ? { rows: L } : L;
+      lr.forEach((r, j) => {
+        const y = j + dy;
+        if (y < 0 || y >= rows.length) return;
+        for (let i = 0; i < r.length; i++) {
+          const x = i + dx;
+          if (r[i] !== '.' && r[i] !== ' ' && x >= 0 && x < rows[y].length) rows[y][x] = r[i];
+        }
+      });
+    }
+    return rows.map((r) => r.join(''));
+  }
+
+  // ---- 文字 ----
+  function glyphRows(ch) {
+    const f = F();
+    if (f.NORM[ch]) ch = f.NORM[ch];
+    const g = f.glyphs[ch];
+    if (g) return g;
+    const base = f.DAKU[ch] || f.HANDAKU[ch];
+    if (!base || !f.glyphs[base]) return null;
+    const rows = f.glyphs[base].map((r) => r + '.');
+    const put = (x, y) => { const r = rows[y].split(''); r[x] = '#'; rows[y] = r.join(''); };
+    if (f.DAKU[ch]) { put(4, 0); put(5, 1); }
+    else { put(4, 0); put(3, 1); put(5, 1); put(4, 2); }
+    return rows;
+  }
+  const hasGlyph = (ch) => !!glyphRows(ch);
+
+  const glyphCache = {};
+  function glyph(ch, color) {
+    const k = ch + color;
+    if (glyphCache[k]) return glyphCache[k];
+    const rows = glyphRows(ch) || glyphRows('?');
+    const c = mk(6, 7), g = c.getContext('2d');
+    g.fillStyle = color;
+    for (let y = 0; y < 7; y++) for (let x = 0; x < rows[y].length; x++) if (rows[y][x] === '#') g.fillRect(x, y, 1, 1);
+    return (glyphCache[k] = c);
+  }
+
+  const textW = (str) => [...str].length * F().adv - 1;
+
+  // 1行の文字。outline を渡すと1ドットの縁取り
+  function text(g, str, x, y, color, outline) {
+    x = Math.round(x); y = Math.round(y);
+    const chars = [...str], adv = F().adv;
+    if (outline) {
+      for (const [ox, oy] of [[-1, 0], [1, 0], [0, -1], [0, 1], [-1, -1], [1, -1], [-1, 1], [1, 1]]) {
+        chars.forEach((ch, i) => g.drawImage(glyph(ch, outline), x + i * adv + ox, y + oy));
+      }
+    }
+    chars.forEach((ch, i) => g.drawImage(glyph(ch, color), x + i * adv, y));
+  }
+
+  // 幅に収まるように、空白で折り返す
+  function wrap(str, maxChars) {
+    const words = str.split(' '), lines = [];
+    let cur = '';
+    for (const w of words) {
+      const next = cur ? cur + ' ' + w : w;
+      if ([...next].length > maxChars && cur) { lines.push(cur); cur = w; } else cur = next;
+    }
+    if (cur) lines.push(cur);
+    return lines;
+  }
+
+  G.bake = { bake, overlay, text, textW, wrap, glyph, glyphRows, hasGlyph, mk };
+})(window.Game = window.Game || {});
+</script>
+<script>
+// 焼いた絵の窓口: 名前（ID）から絵を引く。Canvas に描く絵・DOM に置く絵・絵入りの文字（設計書 2026-11-06 1節・4節）
+// まだ描いていない絵は目立つ色（マゼンタ）の四角を返し、art.missing に名前を残す
+(function (G) {
+  const S = () => G.sprites, B = () => G.bake;
+  const D = 16; // 1マスのドット
+  const cache = new Map();
+  const missing = new Set();
+
+  function memo(key, make) {
+    let c = cache.get(key);
+    if (!c) { c = make(); cache.set(key, c); }
+    return c;
+  }
+
+  function placeholder(w, h) {
+    return memo(`ph|${w}|${h}`, () => {
+      const c = B().mk(w, h), g = c.getContext('2d');
+      g.fillStyle = '#ff00ff'; g.fillRect(0, 0, w, h);
+      g.fillStyle = '#2e222f'; g.fillRect(0, 0, w, 1); g.fillRect(0, h - 1, w, 1); g.fillRect(0, 0, 1, h); g.fillRect(w - 1, 0, 1, h);
+      return c;
+    });
+  }
+
+  const frameOf = (e, f) => (e.frames ? e.frames[(f | 0) % e.frames.length] : e);
+  const frames = (id) => { const e = S().img[id]; return e && e.frames ? e.frames.length : 1; };
+  const has = (id) => !!S().img[id];
+  const hasMini = (id) => !!S().mini[id];
+
+  // 16×16・16×24 などの絵。opt: { frame, flip, white }
+  function sprite(id, opt = {}) {
+    const key = `i|${id}|${opt.frame | 0}|${opt.flip ? 1 : 0}|${opt.white ? 1 : 0}`;
+    return memo(key, () => {
+      const e = S().img[id];
+      if (!e) { missing.add('img:' + id); return placeholder(D, D); }
+      return B().bake(frameOf(e, opt.frame), { flip: opt.flip, white: opt.white });
+    });
+  }
+
+  // 8×8 までのミニ絵
+  function mini(id, opt = {}) {
+    return memo(`m|${id}|${opt.flip ? 1 : 0}`, () => {
+      const e = S().mini[id];
+      if (!e) { missing.add('mini:' + id); return placeholder(8, 8); }
+      return B().bake(e, { flip: opt.flip });
+    });
+  }
+
+  // 人: 体の型の格子に髪型を重ね、色を差し替える。dir: down | up | left | right、frame: 0 立ち / 1 立ち（ゆれ）/ 2・3 歩き
+  function person(look, dir = 'down', frame = 0) {
+    const side = dir === 'left' || dir === 'right' ? 'side' : dir;
+    const key = `p|${look.body}|${look.hair}|${look.hairColor}|${look.skin}|${look.top}|${look.bottom}|${side}|${dir === 'left' ? 1 : 0}|${frame}`;
+    return memo(key, () => {
+      const P = G.people, body = P.body[look.body] && P.body[look.body][side];
+      if (!body) { missing.add(`person:${look.body}/${side}`); return placeholder(D, 24); }
+      const hair = P.hair[look.hair] && P.hair[look.hair][side];
+      if (!hair) missing.add(`hair:${look.hair}/${side}`);
+      let rows, dy = body.headDy || 0;
+      if (frame >= 2 && body.walk) rows = body.walk[(frame - 2) % body.walk.length];
+      else if (frame === 1) { rows = bob(body.stand, body.waist || 14); dy += 1; }
+      else rows = body.stand;
+      const composed = hair ? B().overlay(rows, { rows: hair, dy }) : rows;
+      return B().bake(composed, { map: G.looks.colorMap(look), flip: dir === 'left' });
+    });
+  }
+  // 立ち姿のゆれ: 腰（waist 行）より上を1ドット下げる
+  function bob(rows, waist) {
+    const w = rows[0].length, out = rows.slice();
+    for (let y = waist; y > 0; y--) out[y] = rows[y - 1];
+    out[0] = '.'.repeat(w);
+    return out;
+  }
+
+  // つながる地面・壁: 上下左右（n e s w）のとなりが同じなかまか（mask: n=1 e=2 s=4 w=8）で部品を重ねる
+  // parts: { base, n, e, s, w（つながっているとき）, N, E, S, W（つながっていないとき）}
+  function joined(kind, mask) {
+    return memo(`j|${kind}|${mask}`, () => {
+      let parts = S().parts && S().parts[kind];
+      if (!parts) { missing.add('parts:' + kind); return placeholder(D, D); }
+      if (parts.vert && !(mask & 10) && (mask & 5)) parts = parts.vert; // 縦の並び（上か下とつながり、左右とはつながらない）用の部品
+      const layers = [];
+      [['n', 1], ['e', 2], ['s', 4], ['w', 8]].forEach(([d, bit]) => {
+        const p = mask & bit ? parts[d] : parts[d.toUpperCase()];
+        if (p) layers.push(p);
+      });
+      return B().bake(B().overlay(parts.base, ...layers));
+    });
+  }
+
+  // 芝生の絵: マスの位置から決まる（毎回同じ）。斜めの並びが目立たないよう、位置をかき混ぜて選ぶ。無地に近いものを多めに
+  const GRASS_PICK = [0, 0, 0, 0, 0, 0, 1, 2, 2, 3, 4];
+  function grassAt(x, y) {
+    let h = Math.imul(x, 374761393) + Math.imul(y, 668265263);
+    h = Math.imul(h ^ (h >>> 13), 1274126177);
+    h = (h ^ (h >>> 16)) >>> 0;
+    return sprite('grass' + (GRASS_PICK[h % GRASS_PICK.length] % S().grassVariants));
+  }
+
+  // 建てるモードのマス目（1ドットの点線）
+  function gridCell() {
+    return memo('grid', () => {
+      const c = B().mk(D, D), g = c.getContext('2d');
+      g.fillStyle = 'rgba(46,34,47,0.35)';
+      for (let i = 0; i < D; i += 2) { g.fillRect(i, 0, 1, 1); g.fillRect(0, i, 1, 1); }
+      return c;
+    });
+  }
+
+  // ぷにコンの輪（ドットの円。r はドット）
+  function ring(r) {
+    return memo(`ring|${r}`, () => {
+      const n = 2 * r + 3, c = B().mk(n, n), g = c.getContext('2d'), m = r + 1;
+      g.fillStyle = 'rgba(255,255,255,0.55)';
+      for (let y = -r - 1; y <= r + 1; y++) for (let x = -r - 1; x <= r + 1; x++) {
+        const d = Math.hypot(x, y);
+        if (d <= r + 0.5 && d > r - 1.5) g.fillRect(m + x, m + y, 1, 1);
+      }
+      return c;
+    });
+  }
+
+  // 影（平らな色の楕円）
+  function shadow(w) {
+    return memo(`sh|${w}`, () => {
+      const c = B().mk(w, 3), g = c.getContext('2d');
+      g.fillStyle = 'rgba(46,34,47,0.3)';
+      g.fillRect(1, 0, w - 2, 1); g.fillRect(0, 1, w, 1); g.fillRect(1, 2, w - 2, 1);
+      return c;
+    });
+  }
+
+  // ---- 文字 ----
+  const INK = '#2e222f', PAPER = '#ffffff';
+  const TOKEN = /\{([A-Za-z0-9]+)\}/g;
+  // '{coin} 120' → [{ mini: 'coin' }, { s: ' 120' }]
+  function parse(str) {
+    const out = [];
+    let last = 0;
+    for (const m of str.matchAll(TOKEN)) {
+      if (m.index > last) out.push({ s: str.slice(last, m.index) });
+      out.push({ mini: m[1] });
+      last = m.index + m[0].length;
+    }
+    if (last < str.length) out.push({ s: str.slice(last) });
+    return out;
+  }
+  const partW = (p) => (p.mini ? mini(p.mini).width + 1 : [...p.s].length * G.font.adv);
+  const lineW = (parts) => Math.max(0, parts.reduce((a, p) => a + partW(p), 0) - 1);
+
+  // 幅（ドット）に収まるように、空白で折り返す
+  function wrapLines(str, maxW) {
+    const out = [];
+    for (const para of str.split('\n')) {
+      let cur = '';
+      for (const w of para.split(' ')) {
+        const next = cur ? cur + ' ' + w : w;
+        if (cur && lineW(parse(next)) > maxW) { out.push(cur); cur = w; } else cur = next;
+      }
+      out.push(cur);
+    }
+    return out;
+  }
+
+  // 絵入りの文字を、画面に出さない Canvas に焼く（Canvas に描くとき用。同じものは使い回す）
+  // opt: { color, outline, wrap（1行の字数）}
+  function textCanvas(str, opt = {}) {
+    const color = opt.color || INK, outline = opt.outline || null;
+    return memo(`t|${str}|${color}|${outline}|${opt.wrap || 0}`, () => {
+      const lines = opt.wrap ? wrapLines(str, opt.wrap * G.font.adv - 1) : str.split('\n');
+      const pad = outline ? 1 : 0, LH = 9;
+      const w = Math.max(1, ...lines.map((l) => lineW(parse(l)))) + pad * 2;
+      const h = lines.length * LH - 1 + pad * 2;
+      const c = B().mk(w, h), g = c.getContext('2d');
+      lines.forEach((l, i) => {
+        let x = pad;
+        const y = pad + i * LH;
+        for (const p of parse(l)) {
+          if (p.mini) {
+            const m = mini(p.mini);
+            g.drawImage(m, x, y + 8 - m.height);
+          } else B().text(g, p.s, x, y + 1, color, outline);
+          x += partW(p);
+        }
+      });
+      return c;
+    });
+  }
+
+  // ---- DOM に置く絵と文字。大きさは「ドット数 × var(--dot)」----
+  function setDot(px) { document.documentElement.style.setProperty('--dot', px + 'px'); }
+  function sized(el, w, h, scale = 1) {
+    el.style.width = `calc(${w * scale} * var(--dot))`;
+    el.style.height = `calc(${h * scale} * var(--dot))`;
+    el.classList.add('art');
+    return el;
+  }
+  const urls = new Map();
+  function toImg(key, c, scale) {
+    let url = urls.get(key);
+    if (!url) { url = c.toDataURL(); urls.set(key, url); }
+    const e = new Image();
+    e.src = url; e.alt = ''; e.draggable = false;
+    return sized(e, c.width, c.height, scale);
+  }
+  // opt: { mini: true でミニ絵、scale, frame, flip }
+  function img(id, opt = {}) {
+    const c = opt.mini ? mini(id) : sprite(id, opt);
+    return toImg(`${opt.mini ? 'm' : 'i'}|${id}|${opt.frame | 0}|${opt.flip ? 1 : 0}`, c, opt.scale || 1);
+  }
+  function personImg(look, opt = {}) {
+    const c = person(look, 'down', 0);
+    return toImg(`p|${JSON.stringify(look)}`, c, opt.scale || 1);
+  }
+  // つながる地面・壁の絵（mask は joined と同じ）
+  const joinedImg = (kind, mask, opt = {}) => toImg(`j|${kind}|${mask}`, joined(kind, mask), opt.scale || 1);
+
+  // フィギュア: 台座（トロフィーは金）の上にミニ絵
+  function figure(id) {
+    return memo(`f|${id}`, () => {
+      const k = G.gachaLogic && G.gachaLogic.kindOf(id), fig = S().figures[id];
+      const ped = mini(k && k.trophy ? 'pedestalGold' : 'pedestal'), m = mini(fig ? fig.mini : id);
+      const w = Math.max(ped.width, m.width), h = ped.height + m.height - 1, c = B().mk(w, h), g = c.getContext('2d');
+      g.drawImage(ped, (w - ped.width) >> 1, h - ped.height);
+      g.drawImage(m, (w - m.width) >> 1, 0);
+      return c;
+    });
+  }
+  const figureImg = (id, opt = {}) => toImg(`f|${id}`, figure(id), opt.scale || 1);
+
+  // 読み上げ用の文字（{coin} などの印を消す）
+  const plain = (str) => String(str).replace(TOKEN, ' ').replace(/\s+/g, ' ').trim();
+  // 絵入りの文字の <canvas>（aria-label にもとの文字）。opt.scale で 2 倍など
+  function text(str, opt = {}) {
+    const src = textCanvas(String(str), opt), c = B().mk(src.width, src.height);
+    c.getContext('2d').drawImage(src, 0, 0);
+    c.setAttribute('aria-label', plain(str));
+    c.classList.add('art-text');
+    return sized(c, src.width, src.height, opt.scale || 1);
+  }
+
+  // UI の色（sprites.js の ui: 名前 → 色の文字）を CSS 変数 --c-名前 にする
+  function setColors() {
+    const st = document.documentElement.style;
+    for (const [k, ch] of Object.entries(S().ui)) st.setProperty('--c-' + k, S().PAL[ch]);
+  }
+
+  G.art = {
+    D, sprite, mini, person, joined, grassAt, gridCell, ring, shadow, textCanvas, parse,
+    img, personImg, joinedImg, figure, figureImg, text, plain, setDot, setColors, has, hasMini, frames, missing, INK, PAPER,
   };
 })(window.Game = window.Game || {});
 </script>
@@ -1455,9 +3085,8 @@ button:disabled { opacity: .45; }
 
   function create(s, bed) {
     const id = s.nextId++;
-    const looks = G.sprites.residentLooks;
     const r = {
-      id, name: NAMES[(id - 1) % NAMES.length], look: looks[Math.floor(G.rng() * looks.length)],
+      id, name: NAMES[(id - 1) % NAMES.length], look: G.looks.random(G.rng),
       bed: { x: bed.x, y: bed.y }, x: 0, y: 0, path: [], goal: null, state: 'arriving',
       mood: 'normal', shopKey: null, spot: null, queuedAt: 0, lastServed: -1e9,
       hungerTimer: G.config.residentHungerInterval * (0.3 + 0.4 * G.rng()), pullBlockedUntil: 0,
@@ -1780,7 +3409,7 @@ button:disabled { opacity: .45; }
   // おなかがすいているのに、お店がない・行けない・混んでいて家で待っている
   const WAIT_MOODS = { noShop: true, cantReach: true, full: true };
   const waitingHungry = (r) => !!WAIT_MOODS[r.mood] && ['home', 'toFurniture', 'using', 'toMachine', 'playingMachine'].indexOf(r.state) >= 0;
-  // 頭の上に 🍔 の吹き出しを出すか（ほしいものより先）
+  // 頭の上に ハンバーガーの吹き出しを出すか（ほしいものより先）
   const wantsBurger = (r) => r.state === 'toShop' || r.state === 'queued' || waitingHungry(r);
 
   // はなす。ほしいものがかなっていたらお礼をくれる。次に、クレーンで取った景品をくれる
@@ -1806,6 +3435,7 @@ button:disabled { opacity: .45; }
 
   // 読み込んだとき: 家具・台へ向かう途中・使っている途中は家にいることにする。足りない項目をうめる
   function restore(s, r) {
+    r.look = G.looks.normalize(r.look, r.id); // 見た目: 型・髪型・色の番号（古い絵文字は版 6 への移し替えで置き換え済み）
     if (!r.wish || !G.furniture.kindOf(r.wish)) r.wish = null;
     if (typeof r.happiness !== 'number') r.happiness = 0;
     if (typeof r.wishTimer !== 'number') r.wishTimer = G.wishes.firstTimer(G.rng);
@@ -1882,7 +3512,7 @@ button:disabled { opacity: .45; }
 })(window.Game = window.Game || {});
 </script>
 <script>
-// ペット: ついてくる（follow）か、自分のベッドのまわりでうろうろ（idle ↔ walking）
+// ペット: ついてくる（follow）か、自分のベッドのまわりでうろうろ（idle と walking を行き来する）
 // 閉じ込められたら自分のベッドのそばへぱっと戻る（エラーにしない）
 // おうちにいる子は、ときどきベッドの近くのおもちゃへ行って遊ぶ（toToy → toy）。遊ぶと なかよし +1
 // 同じ種類のフィギュア（かペットのトロフィー）を飾ったかざりだなも、同じように見に行く
@@ -1982,18 +3612,19 @@ button:disabled { opacity: .45; }
     p.idleUntil = s.time + 1;
   }
 
-  // k のマスで、ペット p が遊べる・見られるもの { emoji, love }。なければ null
+  // k のマスで、ペット p が遊べる・見られるもの { id, love, shelf }。なければ null
+  // id はおもちゃなら家具の ID、かざりだななら飾ってあるフィギュアの ID（shelf: true）
   // おもちゃ、または p と同じ種類のフィギュアかペットのトロフィーが飾ってあるかざりだな
   function toyAt(s, k, p) {
     if (!k) return null;
     const { x, y } = W().parseKey(k), o = W().objAt(s.world, x, y);
     if (!o) return null;
     const kind = G.furniture.kindOf(o.type);
-    if (kind && kind.petToy) return { emoji: G.sprites.furniture[o.type].emoji, love: C().toyLove };
+    if (kind && kind.petToy) return { id: o.type, love: C().toyLove };
     if (o.type !== 'figureShelf' || !p) return null;
     const sh = G.figures.shelfAt(s, k) || [];
     const id = sh.find(f => f && (f === 'trophyPet' || G.gachaLogic.kindOf(f).pet === p.kind));
-    return id ? { emoji: G.sprites.figures[id].emoji, love: C().shelfLove, shelf: true } : null;
+    return id ? { id, love: C().shelfLove, shelf: true } : null;
   }
 
   function stopToy(p) {
@@ -2104,7 +3735,7 @@ button:disabled { opacity: .45; }
 // ゲーム全体の状態（セーブするのはこれ全部）と、1コマ進める処理
 (function (G) {
   G.rng = G.rng || Math.random;
-  const VERSION = 5;
+  const VERSION = 6;
 
   function create() {
     const c = G.config;
@@ -2184,6 +3815,11 @@ button:disabled { opacity: .45; }
     if (s && s.version === 4 && s.player) {
       Object.assign(s, { gachas: {}, figures: {}, streak: { pet: 0, town: 0, food: 0 }, shelves: {}, capsules: [] });
       s.version = 5; // 住人の craneTimer → visitTimer・figures は restore で
+    }
+    if (s && s.version === 5 && s.player) {
+      // ドット絵: 住人の見た目を絵文字から「型・髪型・色」に（色は住人の id から決める）
+      if (Array.isArray(s.residents)) for (const r of s.residents) if (r) r.look = G.looks.fromEmoji(r.look, r.id);
+      s.version = 6;
     }
     return s;
   }
@@ -2303,263 +3939,286 @@ button:disabled { opacity: .45; }
 })(window.Game = window.Game || {});
 </script>
 <script>
-// Canvas への描画。マス (x, y) の中心は整数の座標
+// Canvas への描画（ドット絵の設計書 2節）。Canvas の画素は「画面の画素 ÷ k」ドットだけにして、ドット単位で描き、
+// 拡大は CSS（image-rendering: pixelated）に任せる。マス (x, y) の中心は整数の座標、1マスは 16 ドット
 (function (G) {
+  const D = 16;
+  const A = () => G.art, S = () => G.sprites, C = () => G.config;
+
   function resize(app) {
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
-    app.W = innerWidth; app.H = innerHeight; app.dpr = dpr;
-    app.canvas.width = app.W * dpr; app.canvas.height = app.H * dpr;
-    app.canvas.style.width = app.W + 'px'; app.canvas.style.height = app.H + 'px';
-    app.T = Math.max(36, Math.min(72, Math.round(Math.min(app.W, app.H) / 8)));
+    const c = C(), dpr = window.devicePixelRatio || 1;
+    const w = Math.round(innerWidth * dpr), h = Math.round(innerHeight * dpr);
+    const [lo, hi] = c.tileCss;
+    let k = Math.max(1, Math.round(Math.min(w, h) / (c.tilesShort * D)));
+    while (k > 1 && (D * k) / dpr > hi) k--;
+    while ((D * k) / dpr < lo) k++;
+    const Lw = Math.ceil(w / k), Lh = Math.ceil(h / k);
+    // 端数の dpr（2.75 など）では、表示の大きさが 1/64 CSS px に丸められて 1 行だけ k-1 画素になることがあるので、
+    // Canvas を右と下へ（画面の外に）数ドット足して、丸めの要らない大きさにする（HOPPE DIVE の render.js と同じ）
+    const fit = (n) => { for (let p = 0; p < 64; p++) { const v = ((n + p) * k * 64) / dpr; if (Math.abs(v - Math.round(v)) < 1e-6) return n + p; } return n; };
+    const cw = fit(Lw), ch = fit(Lh);
+    app.canvas.width = cw; app.canvas.height = ch;
+    app.canvas.style.width = (cw * k) / dpr + 'px';
+    app.canvas.style.height = (ch * k) / dpr + 'px';
+    // T: 1マスの CSS px（input.js のなぞり・toScreen が使う）
+    // 画面の上の表示（DOM）のドット: 普通は Canvas と同じ k 画素。低い画面では、表示が入りきるように小さくする（整数の画素のまま）
+    const uiK = Math.max(1, Math.min(k, Math.floor(Math.min(w, h) / c.uiDotsShort)));
+    Object.assign(app, { W: innerWidth, H: innerHeight, dpr, k, cssK: k / dpr, uiK, Lw, Lh, T: (D * k) / dpr });
+    app.ctx.imageSmoothingEnabled = false;
+    A().setDot(uiK / dpr);
   }
 
-  const toScreen = (app, x, y) => ({ x: (x - app.cam.x) * app.T + app.W / 2, y: (y - app.cam.y) * app.T + app.H / 2 });
-  const screenToTile = (app, sx, sy) => ({
-    x: Math.round((sx - app.W / 2) / app.T + app.cam.x), y: Math.round((sy - app.H / 2) / app.T + app.cam.y) });
-
-  function emoji(ctx, ch, x, y, size) {
-    ctx.fillStyle = "#000";
-    ctx.font = `${size}px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif`;
-    ctx.fillText(ch, x, y);
-  }
-
-  function tileRect(ctx, sx, sy, T, sp) {
-    ctx.fillStyle = sp.color;
-    ctx.fillRect(Math.floor(sx - T / 2), Math.floor(sy - T / 2), T + 1, T + 1); // +1 はすき間の線を消すため
-    if (sp.line) { ctx.strokeStyle = sp.line; ctx.lineWidth = 2; ctx.strokeRect(sx - T / 2 + 1, sy - T / 2 + 1, T - 2, T - 2); }
-  }
-
-  function drawWall(ctx, sx, sy, T, sp) {
-    tileRect(ctx, sx, sy, T, sp);
-    ctx.strokeStyle = sp.line; ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    ctx.moveTo(sx - T / 2, sy); ctx.lineTo(sx + T / 2, sy);
-    ctx.moveTo(sx, sy - T / 2); ctx.lineTo(sx, sy);
-    ctx.moveTo(sx - T / 4, sy); ctx.lineTo(sx - T / 4, sy + T / 2);
-    ctx.moveTo(sx + T / 4, sy); ctx.lineTo(sx + T / 4, sy + T / 2);
-    ctx.stroke();
-  }
-
-  // クレーン台: ガラスの中に景品が小さく並び、下に 🕹️
-  function drawCrane(ctx, sx, sy, T, rec) {
-    const sp = G.sprites.crane;
-    tileRect(ctx, sx, sy, T, sp);
-    ctx.fillStyle = sp.glass;
-    ctx.fillRect(sx - T * 0.4, sy - T * 0.42, T * 0.8, T * 0.42);
-    if (rec) rec.slots.forEach((id, i) => {
-      if (id) emoji(ctx, G.sprites.furniture[id].emoji, sx - T * 0.32 + i * T * 0.16, sy - T * 0.16, T * 0.17);
-    });
-    emoji(ctx, sp.emoji, sx, sy + T * 0.22, T * 0.36);
-  }
-
-  // ミニフィギュア: 台座（トロフィーは金色）の上に絵
-  function drawFigure(ctx, id, x, y, size) {
-    const S = G.sprites, k = G.gachaLogic.kindOf(id);
-    ctx.fillStyle = k && k.trophy ? S.pedestalGold : S.pedestal;
-    ctx.beginPath(); ctx.ellipse(x, y + size * 0.45, size * 0.45, size * 0.14, 0, 0, Math.PI * 2); ctx.fill();
-    emoji(ctx, S.figures[id].emoji, x, y, size);
-  }
-
-  // ガシャ台: 色の台、丸いガラスにカプセルの点、下にシリーズの絵
-  function drawGacha(ctx, sx, sy, T, type) {
-    const S = G.sprites, sp = S[type], cap = S.capsule;
-    tileRect(ctx, sx, sy, T, sp);
-    ctx.fillStyle = S.gachaGlass;
-    ctx.beginPath(); ctx.arc(sx, sy - T * 0.12, T * 0.3, 0, Math.PI * 2); ctx.fill();
-    const dots = [[-0.12, -0.05, cap.top], [0.1, -0.02, '#42a5f5'], [-0.02, -0.18, '#ffca28'], [0.13, -0.2, '#66bb6a'], [-0.15, -0.22, '#ab47bc']];
-    for (const [dx, dy, col] of dots) { ctx.fillStyle = col; ctx.beginPath(); ctx.arc(sx + dx * T, sy + dy * T, T * 0.07, 0, Math.PI * 2); ctx.fill(); }
-    emoji(ctx, sp.emoji, sx, sy + T * 0.3, T * 0.28);
-  }
-
-  // かざりだな: 木の台に、飾ったフィギュアが3つ並ぶ
-  function drawShelf(ctx, sx, sy, T, slots) {
-    const sp = G.sprites.figureShelf;
-    tileRect(ctx, sx, sy, T, sp);
-    ctx.fillStyle = sp.board;
-    ctx.fillRect(sx - T * 0.44, sy + T * 0.12, T * 0.88, T * 0.08);
-    (slots || []).forEach((id, i) => { if (id) drawFigure(ctx, id, sx + (i - 1) * T * 0.3, sy - T * 0.08, T * 0.32); });
-  }
-
-  // 空のカプセル: 上下で色が違う小さい丸
-  function drawCapsule(ctx, sx, sy, T) {
-    const cap = G.sprites.capsule, r = T * 0.14, y = sy + T * 0.15;
-    ctx.fillStyle = cap.bottom; ctx.beginPath(); ctx.arc(sx, y, r, 0, Math.PI); ctx.fill();
-    ctx.fillStyle = cap.top; ctx.beginPath(); ctx.arc(sx, y, r, Math.PI, Math.PI * 2); ctx.fill();
-    ctx.strokeStyle = cap.line; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(sx, y, r, 0, Math.PI * 2); ctx.stroke();
-  }
-
-  // ペット: 動き方ごとのゆれ、芸、おなかが空の吹き出し、となりにいるときはハート
-  function drawPet(app, pet, sx, sy, now, near) {
-    const { ctx, T } = app, S = G.sprites, sp = S.pets[pet.kind], c = G.config;
-    const move = G.pets.kindOf(pet.kind).move, size = T * sp.size;
-    let lift = 0, angle = 0;
-    if (move === 'hop' && pet.moving) lift = Math.abs(Math.sin(now * 10 + pet.id)) * T * 0.18;
-    if (move === 'float') lift = T * 0.15 + Math.sin(now * 3 + pet.id) * T * 0.05;
-    if (pet.trick) {
-      const k = 1 - Math.max(0, pet.trick.until - app.s.time) / c.trickTime; // 0 → 1
-      if (pet.trick.id === 'spin') angle = k * Math.PI * 2;
-      if (pet.trick.id === 'jump') lift += Math.sin(k * Math.PI) * T * 0.5;
-    }
-    ctx.fillStyle = '#0003';
-    ctx.beginPath(); ctx.ellipse(sx, sy + T * 0.25, size * 0.4, T * 0.08, 0, 0, Math.PI * 2); ctx.fill();
-    const py = sy + T * 0.1 - lift;
-    ctx.save(); ctx.translate(sx, py); ctx.rotate(angle);
-    emoji(ctx, sp.emoji, 0, 0, size);
-    ctx.restore();
-    let top = py - size * 0.6;
-    if (near) {
-      const h = G.petCare.hearts(pet.love);
-      ctx.font = `bold ${Math.round(T * 0.22)}px sans-serif`;
-      ctx.lineWidth = 3; ctx.strokeStyle = '#fff'; ctx.fillStyle = '#333';
-      ctx.strokeText(pet.name, sx, top); ctx.fillText(pet.name, sx, top);
-      top -= T * 0.22;
-      if (h) { emoji(ctx, S.heart.emoji.repeat(h), sx, top, T * 0.2); top -= T * 0.2; }
-    }
-    if (pet.state === 'toy' && pet.toyKey) {
-      const toy = G.pets.toyAt(app.s, pet.toyKey, pet);
-      if (toy) emoji(ctx, toy.emoji, sx - size * 0.5, py - size * 0.6 - Math.abs(Math.sin(now * 6)) * T * 0.1, T * 0.25);
-      if (toy && toy.shelf) emoji(ctx, S.heart.emoji, sx - size * 0.5, py - size * 0.95, T * 0.18);
-    }
-    if (pet.hunger <= 0) {
-      emoji(ctx, '💭', sx + size * 0.5, py - size * 0.6, T * 0.4);
-      emoji(ctx, S.petHungry.emoji, sx + size * 0.5, py - size * 0.62, T * 0.2);
-    }
-  }
-
-  // 住人の吹き出し: おなか（お店へ向かう・お店に行けず待っている）＞ かなった ✨ ＞ 景品 🎁 ＞ ほしいもの 💭
-  // 使っている家具の絵・遊んでいるクレーンの絵。となりならハート
-  function drawResidentExtras(app, r, sx, sy, near) {
-    const { ctx, T } = app, S = G.sprites;
-    const wishBubble = (mark) => {
-      const sp = S.furniture[r.wish];
-      emoji(ctx, mark, sx + T * 0.35, sy - T * 0.5, T * 0.45);
-      if (sp.emoji) emoji(ctx, sp.emoji, sx + T * 0.35, sy - T * 0.52, T * 0.22);
-      else { ctx.fillStyle = sp.color; ctx.fillRect(sx + T * 0.27, sy - T * 0.6, T * 0.16, T * 0.16); }
+  // カメラ（ドット。先に丸める）と、見える範囲の半分（ドット）
+  function view(app) {
+    return {
+      cx: Math.round(app.cam.x * D), cy: Math.round(app.cam.y * D),
+      hx: Math.floor(app.W / app.cssK / 2), hy: Math.floor(app.H / app.cssK / 2),
     };
-    if (G.residents.wantsBurger(r)) {
-      emoji(ctx, '💭', sx + T * 0.35, sy - T * 0.5, T * 0.45);
-      emoji(ctx, S.burger.emoji, sx + T * 0.35, sy - T * 0.52, T * 0.22);
-    } else if (r.wish && G.wishes.granted(app.s, r)) wishBubble(S.sparkle.emoji);
-    else if (r.gift) emoji(ctx, S.gift.emoji, sx + T * 0.35, sy - T * 0.5, T * 0.4);
-    else if (r.wish) wishBubble('💭');
+  }
+  // マス単位の位置 → ドット（マスの中心）
+  const dotX = (v, x) => Math.round(x * D) - v.cx + v.hx;
+  const dotY = (v, y) => Math.round(y * D) - v.cy + v.hy;
+
+  const toScreen = (app, x, y) => { const v = view(app); return { x: dotX(v, x) * app.cssK, y: dotY(v, y) * app.cssK }; };
+  const screenToTile = (app, sx, sy) => {
+    const v = view(app);
+    return { x: Math.round((sx / app.cssK - v.hx + v.cx) / D), y: Math.round((sy / app.cssK - v.hy + v.cy) / D) };
+  };
+
+  // 絵を「下の辺の真ん中」で置く
+  const put = (g, c, cx, bottom) => g.drawImage(c, cx - (c.width >> 1), bottom - c.height);
+
+  // ---- 向きと歩きのコマ（描くためだけの記録。状態は書き換えない）----
+  const motion = new Map();
+  function moveOf(key, x, y, now, sideOnly) {
+    let m = motion.get(key);
+    if (!m) { m = { x, y, dir: sideOnly ? 'right' : 'down', dist: 0, moving: false }; motion.set(key, m); }
+    const dx = x - m.x, dy = y - m.y, d = Math.hypot(dx, dy);
+    m.moving = d > 0.0005;
+    if (m.moving && d < 1) { // ワープしたときは向きを変えない
+      if (sideOnly) { if (Math.abs(dx) > 0.0005) m.dir = dx > 0 ? 'right' : 'left'; }
+      else m.dir = Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'right' : 'left') : (dy > 0 ? 'down' : 'up');
+      m.dist += d;
+    }
+    m.x = x; m.y = y;
+    const c = C();
+    m.frame = m.moving ? 2 + (Math.floor(m.dist / c.walkStep) % 2) : Math.floor(now / c.idleBob) % 2;
+    return m;
+  }
+
+  // ---- もの ----
+  const SOLID = (t) => t === 'wall' || t === 'door';
+  function wallMask(wd, x, y) {
+    const t = (dx, dy) => { const o = G.world.objAt(wd, x + dx, y + dy); return o && SOLID(o.type); };
+    return (t(0, -1) ? 1 : 0) | (t(1, 0) ? 2 : 0) | (t(0, 1) ? 4 : 0) | (t(-1, 0) ? 8 : 0);
+  }
+  function floorMask(wd, x, y) {
+    const f = (dx, dy) => G.world.hasFloor(wd, x + dx, y + dy);
+    return (f(0, -1) ? 1 : 0) | (f(1, 0) ? 2 : 0) | (f(0, 1) ? 4 : 0) | (f(-1, 0) ? 8 : 0);
+  }
+
+  // フィギュア: 台座（トロフィーは金）の上にミニ絵。bottom は台座の下
+  function drawFigure(g, id, cx, bottom) {
+    const k = G.gachaLogic.kindOf(id), fig = S().figures[id];
+    const ped = A().mini(k && k.trophy ? 'pedestalGold' : 'pedestal');
+    put(g, ped, cx, bottom);
+    put(g, A().mini(fig ? fig.mini : id), cx, bottom - ped.height + 1);
+  }
+
+  function drawObject(app, g, o, x, y, sx, sy) {
+    const s = app.s, art = A(), key = G.world.key(x, y), bottom = sy + 8;
+    if (SOLID(o.type)) { g.drawImage(art.joined(o.type, wallMask(s.world, x, y)), sx - 8, sy - 8); return; }
+    if (o.type === 'crane') {
+      const c = art.sprite('crane');
+      put(g, c, sx, bottom);
+      const rec = s.cranes[key], L = S().layout.craneSlots, left = sx - (c.width >> 1), top = bottom - c.height;
+      if (rec) L.forEach(([dx, dy], i) => { const id = rec.slots[i]; if (id) g.drawImage(art.mini(id), left + dx, top + dy); });
+      return;
+    }
+    if (o.type === 'figureShelf') {
+      const c = art.sprite('figureShelf');
+      put(g, c, sx, bottom);
+      const L = S().layout.shelfSlots, left = sx - (c.width >> 1), top = bottom - c.height;
+      (s.shelves[key] || []).forEach((id, i) => { if (id && L[i]) drawFigure(g, id, left + L[i][0], top + L[i][1]); });
+      return;
+    }
+    const tvOn = o.type === 'tv' && app.tvGlow && app.tvGlow.key === key && s.time < app.tvGlow.until; // テレビは光っている間だけ、ついている絵
+    put(g, art.sprite(o.type, { frame: tvOn ? 1 : 0 }), sx, bottom);
+  }
+
+  // 店員はカウンターの奥に立つ（カウンターより先に描き、下半身がかくれる）
+  const CLERK = { counter: 'clerkBurger', petCounter: 'clerkPet', furnitureCounter: 'clerkFurniture' };
+
+  // ---- 頭の上の表示 ----
+  function bubble(g, id, cx, bottom) {
+    const b = A().sprite('bubble');
+    put(g, b, cx, bottom);
+    const m = A().mini(id);
+    g.drawImage(m, cx - (m.width >> 1), bottom - b.height + ((b.height - 3 - m.height) >> 1));
+  }
+  function hearts(g, n, cx, top) {
+    const h = A().mini('heart'), w = h.width + 1;
+    for (let i = 0; i < n; i++) g.drawImage(h, cx - ((n * w - 1) >> 1) + i * w, top - h.height);
+  }
+
+  // 住人の吹き出し: おなか（お店へ向かう・お店に行けず待っている）＞ かなった ＞ 景品 ＞ ほしいもの
+  // 使っている家具の印・遊んでいる台の印。となりならハート
+  function residentExtras(app, g, r, px, top, near) {
+    const s = app.s, art = A(), bx = px + 8;
+    if (G.residents.wantsBurger(r)) bubble(g, 'burger', bx, top + 4);
+    else if (r.wish && G.wishes.granted(s, r)) { bubble(g, r.wish, bx, top + 4); g.drawImage(art.mini('sparkle'), bx + 2, top - 10); }
+    else if (r.gift) put(g, art.mini('gift'), bx, top + 4);
+    else if (r.wish) bubble(g, r.wish, bx, top + 4);
+    let mark = null;
     if (r.state === 'using' && r.useKey) {
-      const { x, y } = G.world.parseKey(r.useKey), o = G.world.objAt(app.s.world, x, y);
-      if (o && S.furniture[o.type]) emoji(ctx, S.furniture[o.type].react, sx - T * 0.35, sy - T * 0.45, T * 0.3);
+      const { x, y } = G.world.parseKey(r.useKey), o = G.world.objAt(s.world, x, y);
+      if (o && S().furniture[o.type]) mark = S().furniture[o.type].reactMini;
     }
     if (r.state === 'playingMachine') {
-      const { x, y } = G.world.parseKey(r.machineKey), o = G.world.objAt(app.s.world, x, y);
-      const ch = o && o.type === 'crane' ? S.crane.emoji : o && S[o.type] ? S[o.type].emoji : '';
-      if (ch) emoji(ctx, ch, sx - T * 0.35, sy - T * 0.45, T * 0.3);
+      const { x, y } = G.world.parseKey(r.machineKey), o = G.world.objAt(s.world, x, y);
+      if (o) mark = o.type;
     }
-    if (near && r.happiness) emoji(ctx, S.heart.emoji.repeat(r.happiness), sx, sy - T * 0.62, T * 0.18);
+    if (mark) put(g, art.mini(mark), px - 10, top + 6);
+    if (near && r.happiness) hearts(g, r.happiness, px, top - 1);
+  }
+
+  // ペット: 動き方ごとのゆれ、芸、おなかが空の吹き出し、となりにいるときは名前とハート
+  function drawPet(app, g, pet, px, py, now, near, over) {
+    const c = C(), m = moveOf('pet' + pet.id, pet.x, pet.y, now, true);
+    const move = G.pets.kindOf(pet.kind).move;
+    let lift = 0, flip = m.dir === 'left';
+    if (move === 'hop' && pet.moving) lift = Math.round(Math.abs(Math.sin(now * 10 + pet.id)) * 3);
+    if (move === 'float') lift = 2 + Math.round(Math.sin(now * 3 + pet.id));
+    if (pet.trick) {
+      const k = 1 - Math.max(0, pet.trick.until - app.s.time) / c.trickTime; // 0 → 1
+      if (pet.trick.id === 'spin') { flip = Math.floor(k * c.trickTime / c.spinFlip) % 2 === 1; lift += Math.round(Math.abs(Math.sin(k * Math.PI * 4)) * 2); }
+      if (pet.trick.id === 'jump') lift += Math.round(Math.sin(k * Math.PI) * 8);
+    }
+    const spr = A().sprite(pet.kind, { frame: m.moving ? 1 + (m.frame - 2) : 0, flip });
+    put(g, A().shadow(Math.max(6, spr.width - 4)), px, py + 8);
+    put(g, spr, px, py + 7 - lift);
+    const top = py + 7 - lift - spr.height;
+    over.push(() => {
+      let t = top - 1;
+      if (near) {
+        const name = A().textCanvas(pet.name, { color: A().INK, outline: A().PAPER });
+        g.drawImage(name, px - (name.width >> 1), t - name.height);
+        t -= name.height + 1;
+        const h = G.petCare.hearts(pet.love);
+        if (h) { hearts(g, h, px, t); t -= 9; }
+      }
+      if (pet.state === 'toy' && pet.toyKey) {
+        const toy = G.pets.toyAt(app.s, pet.toyKey, pet);
+        if (toy) {
+          const id = toy.shelf ? S().figures[toy.id].mini : toy.id, bounce = Math.round(Math.abs(Math.sin(now * 6)) * 2);
+          put(g, A().mini(id), px - 9, top + 2 - bounce);
+          if (toy.shelf) put(g, A().mini('heart'), px - 9, top - 8);
+        }
+      }
+      if (pet.hunger <= 0) bubble(g, 'meat', px + 9, top + 4);
+    });
   }
 
   function draw(app) {
-    const { ctx, T, W, H } = app, s = app.s, S = G.sprites, wd = s.world;
-    ctx.setTransform(app.dpr, 0, 0, app.dpr, 0, 0);
-    ctx.fillStyle = '#5d8a2f'; ctx.fillRect(0, 0, W, H);
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    const g = app.ctx, s = app.s, wd = s.world, art = A(), v = view(app), now = performance.now() / 1000;
+    g.imageSmoothingEnabled = false;
+    g.fillStyle = S().PAL.t; g.fillRect(0, 0, app.canvas.width, app.canvas.height);
 
-    const x0 = Math.max(0, Math.floor(app.cam.x - W / 2 / T) - 1), x1 = Math.min(wd.w - 1, Math.ceil(app.cam.x + W / 2 / T) + 1);
-    const y0 = Math.max(0, Math.floor(app.cam.y - H / 2 / T) - 1), y1 = Math.min(wd.h - 1, Math.ceil(app.cam.y + H / 2 / T) + 1);
+    // 見えるマス（背の高いものと人の頭のために、下へ1マス多く）
+    const x0 = Math.max(0, Math.floor((v.cx - v.hx) / D) - 1), x1 = Math.min(wd.w - 1, Math.ceil((v.cx + v.hx) / D) + 1);
+    const y0 = Math.max(0, Math.floor((v.cy - v.hy) / D) - 1), y1 = Math.min(wd.h - 1, Math.ceil((v.cy + v.hy) / D) + 2);
 
+    // 1. 地面
     for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
-      const { x: sx, y: sy } = toScreen(app, x, y);
-      tileRect(ctx, sx, sy, T, G.world.hasFloor(wd, x, y) ? S.floor : S.grass);
-      const o = G.world.objAt(wd, x, y);
-      if (!o) continue;
-      if (o.type === 'wall') drawWall(ctx, sx, sy, T, S.wall);
-      else if (o.type === 'counter') {
-        tileRect(ctx, sx, sy, T, S.counter);
-        emoji(ctx, S.burger.emoji, sx, sy + T * 0.1, T * 0.45);
-        const working = s.job.active && s.job.counter === G.world.key(x, y);
-        if (!working) emoji(ctx, S.clerk.emoji, sx, sy - T * 0.35, T * 0.6);
-      } else if (o.type === 'petCounter') {
-        tileRect(ctx, sx, sy, T, S.petCounter);
-        emoji(ctx, S.paw.emoji, sx, sy + T * 0.1, T * 0.45);
-        emoji(ctx, S.petClerk.emoji, sx, sy - T * 0.35, T * 0.6);
-      } else if (o.type === 'furnitureCounter') {
-        tileRect(ctx, sx, sy, T, S.furnitureCounter);
-        emoji(ctx, S.furnitureIcon.emoji, sx, sy + T * 0.1, T * 0.45);
-        emoji(ctx, S.furnitureClerk.emoji, sx, sy - T * 0.35, T * 0.6);
-      } else if (o.type === 'crane') drawCrane(ctx, sx, sy, T, s.cranes[G.world.key(x, y)]);
-      else if (G.gachaLogic.isMachine(o.type)) drawGacha(ctx, sx, sy, T, o.type);
-      else if (o.type === 'figureShelf') drawShelf(ctx, sx, sy, T, s.shelves[G.world.key(x, y)]);
-      else if (S.furniture[o.type]) {
-        const sp = S.furniture[o.type];
-        if (sp.color) tileRect(ctx, sx, sy, T, sp);
-        if (o.type === 'tv' && app.tvGlow && app.tvGlow.key === G.world.key(x, y) && s.time < app.tvGlow.until) {
-          ctx.fillStyle = '#fff59d'; ctx.beginPath(); ctx.arc(sx, sy, T * 0.5, 0, Math.PI * 2); ctx.fill();
-        }
-        if (sp.emoji) emoji(ctx, sp.emoji, sx, sy, T * (sp.color ? 0.55 : 0.8));
-      } else emoji(ctx, S[o.type].emoji, sx, sy, T * 0.8);
-      if (o.own) emoji(ctx, '⭐', sx + T * 0.3, sy - T * 0.3, T * 0.3);
+      const sx = dotX(v, x), sy = dotY(v, y);
+      const c = G.world.hasFloor(wd, x, y) ? art.joined('floor', floorMask(wd, x, y)) : art.grassAt(x, y);
+      g.drawImage(c, sx - 8, sy - 8);
     }
 
+    // 2. 奥から手前へ（足もとの y の順）
+    const items = [], over = [];
+    for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
+      const o = G.world.objAt(wd, x, y);
+      if (!o) continue;
+      const sx = dotX(v, x), sy = dotY(v, y);
+      if (CLERK[o.type]) {
+        const working = o.type === 'counter' && s.job.active && s.job.counter === G.world.key(x, y);
+        if (!working) items.push({ k: y + 0.48, f: () => put(g, art.sprite(CLERK[o.type], { frame: Math.floor(now / C().idleBob) % 2 }), sx, sy - 2) });
+      }
+      items.push({ k: y + 0.49, f: () => drawObject(app, g, o, x, y, sx, sy) });
+      if (o.own) over.push(() => g.drawImage(art.mini('star'), sx + 1, sy - 12));
+    }
     // 住人のベッドのはしに、その住人のフィギュア（新しいもの3つ）
     for (const r of s.residents) {
       if (!r.figures || !r.figures.length || r.bed.x < x0 || r.bed.x > x1 || r.bed.y < y0 || r.bed.y > y1) continue;
-      const { x: sx, y: sy } = toScreen(app, r.bed.x, r.bed.y);
-      r.figures.slice(-3).forEach((id, i) => drawFigure(ctx, id, sx - T * 0.3 + i * T * 0.3, sy + T * 0.3, T * 0.2));
+      const sx = dotX(v, r.bed.x), sy = dotY(v, r.bed.y);
+      items.push({ k: r.bed.y + 0.495, f: () => r.figures.slice(-3).forEach((id, i) => drawFigure(g, id, sx - 4 + i * 4, sy + 8)) });
     }
-    for (const k of s.capsules) {
-      const { x, y } = G.world.parseKey(k);
+    for (const key of s.capsules) {
+      const { x, y } = G.world.parseKey(key);
       if (x < x0 || x > x1 || y < y0 || y > y1) continue;
-      const p = toScreen(app, x, y);
-      drawCapsule(ctx, p.x, p.y, T);
+      items.push({ k: y + 0.3, f: () => put(g, art.mini('capsule'), dotX(v, x), dotY(v, y) + 5) });
     }
 
-    if (app.mode === 'build') {
-      ctx.strokeStyle = '#0002'; ctx.lineWidth = 1;
-      for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
-        const { x: sx, y: sy } = toScreen(app, x, y);
-        ctx.strokeRect(sx - T / 2, sy - T / 2, T, T);
-      }
-    }
-
-    // 人（奥から順に）
-    const people = s.residents.map(r => ({ x: r.x, y: r.y, ch: r.look, r }));
-    people.push({ x: s.player.x, y: s.player.y, ch: S.player.emoji, me: true });
+    // 人とペット
     const nearPet = G.pets.near(s), nearRes = G.residents.near(s);
-    for (const pet of s.pets) people.push({ x: pet.x, y: pet.y, pet, near: pet === nearPet });
-    people.sort((a, b) => a.y - b.y);
-    const now = performance.now() / 1000;
-    for (const p of people) {
-      const { x: sx, y: sy } = toScreen(app, p.x, p.y);
-      if (sx < -T || sy < -T || sx > W + T || sy > H + T) continue;
-      if (p.pet) { drawPet(app, p.pet, sx, sy, now, p.near); continue; }
-      ctx.fillStyle = '#0003';
-      ctx.beginPath(); ctx.ellipse(sx, sy + T * 0.32, T * 0.28, T * 0.1, 0, 0, Math.PI * 2); ctx.fill();
-      emoji(ctx, p.ch, sx, sy - T * 0.05, T * 0.8);
-      if (p.me) {
-        ctx.fillStyle = '#ff5722';
-        ctx.beginPath(); ctx.moveTo(sx, sy - T * 0.5); ctx.lineTo(sx - 7, sy - T * 0.62); ctx.lineTo(sx + 7, sy - T * 0.62); ctx.fill();
-      } else drawResidentExtras(app, p.r, sx, sy, p.r === nearRes);
+    const person = (key, look, ent, extras) => {
+      const px = dotX(v, ent.x), py = dotY(v, ent.y);
+      items.push({ k: ent.y + 0.5, f: () => {
+        const m = moveOf(key, ent.x, ent.y, now, false), spr = art.person(look, m.dir, m.frame);
+        put(g, art.shadow(10), px, py + 8);
+        put(g, spr, px, py + 7);
+        const top = py + 7 - spr.height;
+        if (extras) over.push(() => extras(px, top));
+      } });
+    };
+    person('me', G.looks.PLAYER, s.player, (px, top) => put(g, art.mini('playerMark'), px, top - 1));
+    for (const r of s.residents) person('r' + r.id, r.look, r, (px, top) => residentExtras(app, g, r, px, top, r === nearRes));
+    for (const pet of s.pets) {
+      const px = dotX(v, pet.x), py = dotY(v, pet.y);
+      items.push({ k: pet.y + 0.5, f: () => drawPet(app, g, pet, px, py, now, pet === nearPet, over) });
     }
+    items.sort((a, b) => a.k - b.k);
+    for (const it of items) it.f();
 
-    // ぷにコン
+    // 3. 頭の上の表示
+    for (const f of over) f();
+
+    // 4. 建てるモードのマス目、ぷにコン
+    if (app.mode === 'build') {
+      const cell = art.gridCell();
+      for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) g.drawImage(cell, dotX(v, x) - 8, dotY(v, y) - 8);
+    }
     const j = G.input.joy;
     if (j && app.mode === 'walk') {
-      const R = G.input.RADIUS;
+      const R = Math.round(G.input.RADIUS / app.cssK);
       let dx = j.cx - j.ox, dy = j.cy - j.oy; const l = Math.hypot(dx, dy);
-      if (l > R) { dx = dx / l * R; dy = dy / l * R; }
-      ctx.fillStyle = '#fff5'; ctx.beginPath(); ctx.arc(j.ox, j.oy, R, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = '#fffc'; ctx.beginPath(); ctx.arc(j.ox + dx, j.oy + dy, R * 0.45, 0, Math.PI * 2); ctx.fill();
+      if (l > G.input.RADIUS) { dx = (dx / l) * G.input.RADIUS; dy = (dy / l) * G.input.RADIUS; }
+      const ox = Math.round(j.ox / app.cssK), oy = Math.round(j.oy / app.cssK);
+      const ring = art.ring(R);
+      g.drawImage(ring, ox - (ring.width >> 1), oy - (ring.height >> 1));
+      const knob = art.sprite('joyKnob');
+      g.drawImage(knob, Math.round(ox + dx / app.cssK) - (knob.width >> 1), Math.round(oy + dy / app.cssK) - (knob.height >> 1));
     }
   }
 
-  G.render = { resize, draw, toScreen, screenToTile, drawFigure };
+  G.render = { resize, draw, toScreen, screenToTile, drawFigure, D };
 })(window.Game = window.Game || {});
 </script>
 <script>
 // 画面の上に重ねる表示（DOM）: 上の表示・ボタン・つくるパレット・アルバイト画面・メニュー・ペットやさん・かぐやさん
 // ・クレーンゲームの画面・ならべるの画面・ガシャの画面・かざる・あげる・ずかん
+// 絵と文字は、すべて art.img / art.text（ドット絵）で出す。DOM に普通の文字は置かない（ドット絵の設計書 4節）
 (function (G) {
-  const S = () => G.sprites;
+  const S = () => G.sprites, A = () => G.art;
   let root, els = {}, last = {}, app, tab = 'parts'; // tab: パレットの列 'parts' | 'furniture' | 'gacha'
-  const CAPSULE = '<span class="capsule"></span>';
-  const figEmoji = (id) => S().figures[id].emoji;
   const figLabel = (id) => G.gachaLogic.kindOf(id).label;
+
+  // 絵入りの文字（'{coin} 120' のように書くと、ミニ絵が入る）
+  const T = (str, opt) => A().text(str, opt);
+  const mini = (id, scale = 1, opt = {}) => A().img(id, Object.assign({ mini: true, scale }, opt));
+  const sprite = (id, scale = 1) => A().img(id, { scale });
+  const fig = (id, scale = 2) => A().figureImg(id, { scale });
 
   function h(tag, attrs, ...kids) {
     const e = document.createElement(tag);
@@ -2568,36 +4227,40 @@ button:disabled { opacity: .45; }
       else if (k === 'class') e.className = v;
       else e.setAttribute(k, v);
     }
-    for (const c of kids) e.append(c);
+    for (const c of kids) e.append(typeof c === 'string' ? T(c) : c);
     return e;
   }
-  // pointerdown で押す（タッチで反応を速く・ぷにコンと取り合わない）
+  // 中身を入れかえる。文字列は絵入りの文字に。読み上げ用に aria-label も付ける
+  function fill(el, ...kids) {
+    el.replaceChildren(...kids.map((c) => (typeof c === 'string' ? T(c) : c)));
+    const words = kids.filter((c) => typeof c === 'string');
+    if (words.length) el.setAttribute('aria-label', words.map(A().plain).join(' '));
+    else el.removeAttribute('aria-label');
+  }
+  // pointerdown で押す（タッチで反応を速く・ぷにコンと取り合わない）。label は文字列か、絵（要素）か、その配列
   function btn(label, fn, attrs = {}) {
     const b = h('button', attrs);
-    b.innerHTML = label;
+    fill(b, ...[].concat(label));
     b.addEventListener('pointerdown', (e) => { e.preventDefault(); e.stopPropagation(); if (!b.disabled) fn(); });
     return b;
   }
 
+  // つくるパレットの部品: アイコン（ミニ絵の2倍）と名前。名前はパレットの上の行に出す
   const TOOLS = [
-    { id: 'floor', icon: () => `<span class="swatch" style="background:${S().floor.color}"></span>`, label: 'ゆか' },
-    { id: 'wall', icon: () => `<span class="swatch" style="background:${S().wall.color}"></span>`, label: 'かべ' },
-    { id: 'door', icon: () => S().door.emoji, label: 'ドア' },
-    { id: 'bed', icon: () => S().bed.emoji, label: 'ベッド' },
-    { id: 'counter', icon: () => S().burger.emoji, label: 'カウンター' },
-    { id: 'petCounter', icon: () => S().paw.emoji, label: 'ペットやさん' },
-    { id: 'furnitureCounter', icon: () => S().furnitureIcon.emoji, label: 'かぐやさん' },
+    { id: 'floor', icon: 'floor', label: 'ゆか' },
+    { id: 'wall', icon: 'wall', label: 'かべ' },
+    { id: 'door', icon: 'door', label: 'ドア' },
+    { id: 'bed', icon: 'bed', label: 'ベッド' },
+    { id: 'counter', icon: 'burger', label: 'カウンター' },
+    { id: 'petCounter', icon: 'paw', label: 'ペットやさん' },
+    { id: 'furnitureCounter', icon: 'sofa', label: 'かぐやさん' },
   ];
-  const ERASE = { id: 'erase', icon: () => '🧽', label: 'けす' };
-
-  // 家具の絵（絵文字がなければ色の四角）
-  function furnIcon(id) {
-    const sp = S().furniture[id];
-    return sp.emoji || `<span class="swatch" style="background:${sp.color}"></span>`;
-  }
+  const ERASE = { id: 'erase', icon: 'erase', label: 'けす' };
+  let toolNames = {}; // 部品の ID → 名前の行の文字
 
   function init(a) {
     app = a;
+    A().setColors();
     root = document.getElementById('ui');
     els.money = h('span', { class: 'pill', 'data-t': 'money' });
     els.bar = h('div', { class: 'bar' }, h('i'));
@@ -2605,78 +4268,83 @@ button:disabled { opacity: .45; }
     els.food = h('span', { class: 'pill', 'data-t': 'food' });
     els.hand = h('span', { class: 'pill', 'data-t': 'hand' });
     els.build = btn('', () => app.toggleBuild(), { 'data-t': 'build' });
-    els.menu = btn('≡', () => openMenu());
+    els.menu = btn(mini('menu', 2), () => openMenu(), { 'data-t': 'menu', 'aria-label': 'メニュー' });
     root.append(h('div', { class: 'hud' }, els.money, els.food, els.hand, els.hunger, h('span', { class: 'spacer' }), els.build, els.menu));
 
     els.actions = h('div', { class: 'actions' });
-    els.talk = btn('💬 はなす', () => app.talk(), { 'data-t': 'talk' });
+    els.talk = btn('{chat} はなす', () => app.talk(), { 'data-t': 'talk' });
     els.buy = btn('', () => app.buy(), { 'data-t': 'buy' });
-    els.work = btn('🧑‍🍳 アルバイト', () => app.startJob(), { 'data-t': 'work' });
-    els.petShop = btn(`${S().paw.emoji} かう`, () => openShelf(), { 'data-t': 'petshop' });
-    els.pat = btn('🖐️ なでる', () => app.pat(), { 'data-t': 'pat' });
-    els.feed = btn(`${S().food.emoji} えさ`, () => app.feed(), { 'data-t': 'feed' });
+    els.work = btn('{clerkBurger} アルバイト', () => app.startJob(), { 'data-t': 'work' });
+    els.petShop = btn('{paw} かう', () => openShelf(), { 'data-t': 'petshop' });
+    els.pat = btn('{hand} なでる', () => app.pat(), { 'data-t': 'pat' });
+    els.feed = btn('{food} えさ', () => app.feed(), { 'data-t': 'feed' });
     els.follow = btn('', () => app.toggleFollow(), { 'data-t': 'follow' });
     els.toGo = btn('', () => app.toGo(), { 'data-t': 'togo' });
-    els.eat = btn(`${S().burger.emoji} たべる`, () => app.eatHand(), { 'data-t': 'eat' });
-    els.furnShop = btn(`${S().furnitureIcon.emoji} かう`, () => openFurnitureShelf(), { 'data-t': 'furnshop' });
+    els.eat = btn('{burger} たべる', () => app.eatHand(), { 'data-t': 'eat' });
+    els.furnShop = btn('{sofa} かう', () => openFurnitureShelf(), { 'data-t': 'furnshop' });
     els.furnAct = btn('', () => app.furnitureAct(), { 'data-t': 'furnact' });
-    els.stash = btn('🧊 しまう', () => app.stash(), { 'data-t': 'stash' });
+    els.stash = btn('{fridge} しまう', () => app.stash(), { 'data-t': 'stash' });
     els.takeOut = btn('', () => app.takeOut(), { 'data-t': 'takeout' });
     els.cranePlay = btn('', () => app.cranePlay(), { 'data-t': 'craneplay' });
-    els.craneStock = btn(`${S().furniture.bigBear.emoji} ならべる`, () => app.craneStock(), { 'data-t': 'cranestock' });
-    els.giveFig = btn('🎁 あげる', () => openGive(), { 'data-t': 'give-fig' });
-    els.gachaSpin = btn(`${CAPSULE} まわす`, () => app.gachaOpen(), { 'data-t': 'gachaspin' });
-    els.decorate = btn('🖼️ かざる', () => openDecorate(), { 'data-t': 'decorate' });
+    els.craneStock = btn('{bigBear} ならべる', () => app.craneStock(), { 'data-t': 'cranestock' });
+    els.giveFig = btn('{gift} あげる', () => openGive(), { 'data-t': 'give-fig' });
+    els.gachaSpin = btn('{capsule} まわす', () => app.gachaOpen(), { 'data-t': 'gachaspin' });
+    els.decorate = btn('{frame} かざる', () => openDecorate(), { 'data-t': 'decorate' });
     els.actions.append(els.talk, els.giveFig, els.buy, els.toGo, els.work, els.eat, els.petShop, els.pat, els.feed, els.follow,
       els.furnShop, els.furnAct, els.stash, els.takeOut, els.cranePlay, els.craneStock, els.gachaSpin, els.decorate);
     root.append(els.actions);
 
+    els.toolName = h('div', { class: 'pill toolname', 'data-t': 'toolname' });
     els.palette = h('div', { class: 'palette' });
-    root.append(els.palette);
+    els.paletteBox = h('div', { class: 'palettebox' }, els.toolName, els.palette);
+    root.append(els.paletteBox);
     buildPalette();
 
     buildJob();
     buildCrane();
     buildStock();
     buildGacha();
-    els.toast = h('div', { class: 'toast', style: 'display:none' });
+    els.toast = h('div', { class: 'toast panel', style: 'display:none' });
     root.append(els.toast);
-    root.append(h('div', { class: 'rotate' }, 'スマホを よこに してね 📱↻'));
+    root.append(h('div', { class: 'rotate' },
+      h('div', { class: 'rotpics' }, mini('phone', 4), mini('arrow', 3), mini('phoneSide', 4)),
+      T('スマホを よこに してね', { color: A().PAPER })));
   }
 
-  const toolBtn = (id, icon, label) => btn(`${icon}<small>${label}</small>`, () => { app.tool = id; }, { 'data-tool': id });
+  const toolBtn = (id, icon, label, extra = '') => {
+    toolNames[id] = label + extra;
+    return btn(icon, () => { app.tool = id; }, { 'data-tool': id, 'aria-label': label });
+  };
+  const costText = (n) => `　{coin} ${n}`;
 
   // パレットを今の列で作り直す。家具の列は、買った家具だけ
   function buildPalette() {
     els.palette.replaceChildren();
+    toolNames = {};
     if (tab === 'parts') {
-      for (const t of TOOLS) els.palette.append(toolBtn(t.id, t.icon(), t.label));
+      for (const t of TOOLS) els.palette.append(toolBtn(t.id, mini(t.icon, 2), t.label));
       // クレーン台は建てるのにお金がかかる（足りないときは薄く）
-      els.craneTool = btn(`${S().crane.emoji}<small>クレーン</small><small>${S().coin.emoji}${G.config.craneCost}</small>`,
-        () => { app.tool = 'crane'; }, { 'data-tool': 'crane' });
+      els.craneTool = toolBtn('crane', mini('crane', 2), 'クレーン', costText(G.config.craneCost));
       els.palette.append(els.craneTool);
       last.craneAfford = undefined;
-      els.palette.append(btn(`${S().furniture.chair.emoji}<small>かぐ</small>`, () => openFurnitureTab(), { 'data-t': 'furntab' }));
-      els.palette.append(btn(`${CAPSULE}<small>ガシャ</small>`, () => { tab = 'gacha'; buildPalette(); }, { 'data-t': 'gachatab' }));
+      els.palette.append(btn(mini('chair', 2), () => openFurnitureTab(), { 'data-t': 'furntab', 'aria-label': 'かぐ' }));
+      els.palette.append(btn(mini('capsule', 2), () => { tab = 'gacha'; buildPalette(); }, { 'data-t': 'gachatab', 'aria-label': 'ガシャ' }));
     } else if (tab === 'gacha') {
-      els.palette.append(btn('↩️<small>もどる</small>', () => { tab = 'parts'; buildPalette(); }, { 'data-t': 'partstab' }));
+      els.palette.append(btn(mini('back', 2), () => { tab = 'parts'; buildPalette(); }, { 'data-t': 'partstab', 'aria-label': 'もどる' }));
       // ガシャ台は建てるのにお金がかかる（足りないときは薄く）
-      els.gachaTools = G.config.gachaSeries.map(g => {
-        const sp = S()[g.machine];
-        const b = btn(`<span class="swatch" style="background:${sp.color}">${sp.emoji}</span><small>${g.label}</small><small>${S().coin.emoji}${G.config.gachaCost}</small>`,
-          () => { app.tool = g.machine; }, { 'data-tool': g.machine });
+      els.gachaTools = G.config.gachaSeries.map((g) => {
+        const b = toolBtn(g.machine, mini(g.machine, 2), `ガシャ（${g.label}）`, costText(G.config.gachaCost));
         els.palette.append(b);
         return b;
       });
       last.gachaAfford = undefined;
-      const sh = S().figureShelf;
-      els.palette.append(toolBtn('figureShelf', `<span class="swatch" style="background:${sh.color}">🖼️</span>`, 'かざりだな'));
+      els.palette.append(toolBtn('figureShelf', mini('frame', 2), 'かざりだな'));
     } else {
-      els.palette.append(btn('↩️<small>もどる</small>', () => { tab = 'parts'; buildPalette(); }, { 'data-t': 'partstab' }));
+      els.palette.append(btn(mini('back', 2), () => { tab = 'parts'; buildPalette(); }, { 'data-t': 'partstab', 'aria-label': 'もどる' }));
       for (const k of G.config.furnitureKinds)
-        if (G.furniture.isUnlocked(app.s, k.id)) els.palette.append(toolBtn(k.id, furnIcon(k.id), k.label));
+        if (G.furniture.isUnlocked(app.s, k.id)) els.palette.append(toolBtn(k.id, mini(k.id, 2), k.label));
     }
-    els.palette.append(toolBtn(ERASE.id, ERASE.icon(), ERASE.label));
+    els.palette.append(toolBtn(ERASE.id, mini(ERASE.icon, 2), ERASE.label));
     last.tool = undefined; // 選んでいる部品の印を付け直す
   }
 
@@ -2686,38 +4354,43 @@ button:disabled { opacity: .45; }
     buildPalette();
   }
 
+  // ハンバーガーの段: 下から積む（0 が下のパン、いちばん上のパンは上のパン）
+  const LAYER = { patty: 'layerPatty', cheese: 'layerCheese', lettuce: 'layerLettuce' };
+  function stackImgs(list) {
+    return list.map((id, i) => sprite(id === 'bun' ? (i === 0 ? 'layerBunBottom' : 'layerBunTop') : LAYER[id], 2));
+  }
+
   function buildJob() {
     const J = S().ingredients;
-    els.order = h('div', { class: 'stack', 'data-t': 'order' });
+    els.order = h('div', { class: 'stack apart', 'data-t': 'order' }); // 注文は具材ごとにすき間を空けて、数えやすく
     els.customer = h('div', { class: 'customer' });
     els.mine = h('div', { class: 'stack', 'data-t': 'mine' });
     els.wait = h('div', { class: 'wait' });
-    els.give = btn('✋ わたす', () => app.deliver(), { class: 'give', 'data-t': 'give' });
+    els.give = btn('{hand} わたす', () => app.deliver(), { class: 'give', 'data-t': 'give' });
     const controls = h('div', { class: 'controls' });
     for (const id of G.burgerJob.FILLINGS.concat(['bun']).reverse())
-      controls.append(btn(`${J[id].emoji}`, () => app.addLayer(id), { 'data-ing': id, title: J[id].label }));
-    controls.append(btn('↩️ 1つとる', () => app.removeLayer(), { 'data-t': 'undo' }), els.give,
+      controls.append(btn(mini(id, 2), () => app.addLayer(id), { 'data-ing': id, 'aria-label': J[id].label }));
+    controls.append(btn('{back} 1つ とる', () => app.removeLayer(), { 'data-t': 'undo' }), els.give,
       btn('おわる', () => app.endJob(), { class: 'end', 'data-t': 'endjob' }));
-    els.job = h('div', { class: 'job' },
-      h('div', { class: 'col' }, h('div', { class: 'title' }, 'ちゅうもん'), els.wait, els.order, els.customer),
+    els.job = h('div', { class: 'job panel' },
+      h('div', { class: 'col' }, h('div', { class: 'title' }, 'ちゅうもん'), els.wait, h('div', { class: 'orderrow' }, els.customer, els.order)),
       h('div', { class: 'col' }, h('div', { class: 'title' }, 'つくってる ハンバーガー'), els.mine),
       controls);
     root.append(els.job);
   }
 
-  // クレーンの画面: 6列（左はしが取り出し口、そのあと場所0〜4）。アームは armX から位置を決める
+  // クレーンの画面: 6列（左はしが取り出し口、そのあと場所0〜4）。アームは armX から位置を決める。つめと景品は2倍
   function buildCrane() {
-    els.cMeter = h('div', { class: 'meter', 'data-t': 'cranemeter' });
+    els.cMeter = h('div', { class: 'meter pill', 'data-t': 'cranemeter' });
     els.cSlots = [];
-    const slots = h('div', { class: 'cslots' }, h('div', { class: 'chute' }, '⬇️'));
+    const slots = h('div', { class: 'cslots' }, h('div', { class: 'chute' }, mini('arrow', 2, { flip: false })));
     for (let i = 0; i < G.config.craneSlots; i++) { const c = h('div', { class: 'cslot', 'data-slot': i }); els.cSlots.push(c); slots.append(c); }
     els.cRope = h('div', { class: 'rope' });
     els.cClaw = h('div', { class: 'claw' });
     els.cArm = h('div', { class: 'arm' }, els.cRope, els.cClaw);
     els.cMsg = h('div', { class: 'cmsg' });
     const field = h('div', { class: 'cfield' }, els.cArm, slots, els.cMsg);
-    els.cGo = h('button', { class: 'go', 'data-t': 'cranego' });
-    els.cGo.innerHTML = '➡️';
+    els.cGo = h('button', { class: 'go', 'data-t': 'cranego', 'aria-label': 'すすむ' }, mini('arrow', 2));
     const up = () => app.craneHold(false);
     els.cGo.addEventListener('pointerdown', (e) => {
       e.preventDefault(); e.stopPropagation();
@@ -2727,8 +4400,8 @@ button:disabled { opacity: .45; }
     });
     for (const ev of ['pointerup', 'pointercancel', 'lostpointercapture']) els.cGo.addEventListener(ev, up);
     els.cQuit = btn('やめる', () => app.craneQuit(), { class: 'end', 'data-t': 'cranequit' });
-    els.crane = h('div', { class: 'crane', style: 'display:none' },
-      h('div', { class: 'ctop' }, h('div', { class: 'title' }, `${S().crane.emoji} クレーンゲーム`), els.cMeter),
+    els.crane = h('div', { class: 'crane panel', style: 'display:none' },
+      h('div', { class: 'ctop' }, h('div', { class: 'title' }, T('{crane} クレーンゲーム', { scale: 2 })), els.cMeter),
       field,
       h('div', { class: 'controls' }, els.cGo, els.cQuit));
     root.append(els.crane);
@@ -2738,7 +4411,7 @@ button:disabled { opacity: .45; }
     const cp = s.cranePlay, rec = s.cranes[cp.key], c = G.config;
     if (!rec) return;
     const caught = cp.phase === 'result' && cp.result && cp.result.caught;
-    rec.slots.forEach((id, i) => set('cslot' + i, id || '', v => { els.cSlots[i].textContent = v ? S().furniture[v].emoji : ''; }));
+    rec.slots.forEach((id, i) => set('cslot' + i, id || '', (v) => { els.cSlots[i].replaceChildren(...(v ? [sprite(v, 2)] : [])); }));
     // アーム: 結果で取れたときは取り出し口へ戻る
     let x = cp.armX, down = 0;
     if (cp.phase === 'dropping') { const k = cp.t / c.craneDropTime; down = k < 0.5 ? k * 2 : (1 - k) * 2; }
@@ -2746,21 +4419,22 @@ button:disabled { opacity: .45; }
     const cols = c.craneSlots + 1;
     els.cArm.style.left = `${(x + 1.5) / cols * 100}%`;
     els.cRope.style.height = `${8 + down * 55}%`;
-    set('claw', caught ? cp.result.id : '', v => { els.cClaw.innerHTML = '🪝' + (v ? `<span>${S().furniture[v].emoji}</span>` : ''); });
+    set('claw', caught ? cp.result.id : '', (v) => { els.cClaw.replaceChildren(sprite('claw', 2), ...(v ? [sprite(v, 2)] : [])); });
     // あとちょっとメーター: アームにいちばん近い景品の「かならず取れる回数」まで
     const ni = G.craneGame.nearestSlot(rec.slots, cp.armX);
     const need = ni >= 0 ? G.craneGame.triesOf(rec.slots[ni]) - 1 : 0;
     set('cmeter', `${rec.meter},${need}`, () => {
       const n = Math.min(rec.meter, need);
-      els.cMeter.innerHTML = need ? `あとちょっと ${'🔴'.repeat(n)}${'⚪'.repeat(need - n)}` : '';
-      if (need && rec.meter >= need) els.cMeter.innerHTML = 'つぎは かならず とれる！';
+      if (!need) fill(els.cMeter);
+      else if (rec.meter >= need) fill(els.cMeter, 'つぎは かならず とれる！');
+      else { const dots = '{dotOn}'.repeat(n) + '{dotOff}'.repeat(need - n); fill(els.cMeter, `あとちょっと ${dots}`); }
     });
     let msg = '';
-    if (cp.phase === 'ready') msg = '➡️ を おしてる あいだ うごくよ';
+    if (cp.phase === 'ready') msg = '{arrow} を おしてる あいだ うごくよ';
     else if (cp.phase === 'result') msg = cp.result.caught ? 'とれた！' : 'あとちょっと！';
-    set('cmsg', msg, v => { els.cMsg.textContent = v; });
-    set('cgo', cp.phase === 'ready' || cp.phase === 'moving', v => { els.cGo.disabled = !v; });
-    set('cquit', cp.phase === 'ready', v => { els.cQuit.disabled = !v; });
+    set('cmsg', msg, (v) => { if (v) fill(els.cMsg, T(v, { scale: v.length < 8 ? 2 : 1 })); else fill(els.cMsg); });
+    set('cgo', cp.phase === 'ready' || cp.phase === 'moving', (v) => { els.cGo.disabled = !v; });
+    set('cquit', cp.phase === 'ready', (v) => { els.cQuit.disabled = !v; });
   }
 
   // ならべるの画面: 見本（うすい絵）の上に、光っている場所から左から順に置く
@@ -2770,14 +4444,14 @@ button:disabled { opacity: .45; }
     for (let i = 0; i < G.config.craneSlots; i++) { const c = h('div', { class: 'scell', 'data-cell': i }); els.sCells.push(c); row.append(c); }
     const pick = h('div', { class: 'spick' });
     for (const id of G.craneGame.prizeIds()) {
-      const b = btn(S().furniture[id].emoji, () => {
+      const b = btn(sprite(id), () => {
         if (app.stockPick(id).ok) return;
         b.classList.remove('shake'); void b.offsetWidth; b.classList.add('shake');
-      }, { 'data-prize': id });
+      }, { 'data-prize': id, 'aria-label': G.furniture.kindOf(id).label });
       pick.append(b);
     }
-    els.stock = h('div', { class: 'stock', style: 'display:none' },
-      h('div', { class: 'title' }, `${S().furniture.bigBear.emoji} みほんと おなじに ならべてね`), row, pick,
+    els.stock = h('div', { class: 'stock panel', style: 'display:none' },
+      h('div', { class: 'title' }, '{bigBear} みほんと おなじに ならべてね'), row, pick,
       h('div', { class: 'controls' }, btn('やめる', () => app.stockQuit(), { class: 'end', 'data-t': 'stockquit' })));
     root.append(els.stock);
   }
@@ -2788,25 +4462,24 @@ button:disabled { opacity: .45; }
       const placed = new Set(cp.todo.slice(0, cp.done)), cur = cp.todo[cp.done];
       cp.target.forEach((id, i) => {
         const cell = els.sCells[i], todo = cp.todo.indexOf(i) >= 0;
-        cell.textContent = id ? S().furniture[id].emoji : '';
+        cell.replaceChildren(...(id ? [sprite(id, 2)] : []));
         cell.className = 'scell' + (todo && !placed.has(i) ? ' mihon' : '') + (i === cur ? ' now' : '');
       });
     });
   }
 
-  // ガシャの画面: 台の絵 → ぐるっ → カプセル（タップで開く）→ 出たもの
+  // ガシャの画面: 台の絵 → ぐるっ → カプセル（タップで開く）→ 出たもの（2倍）
   function buildGacha() {
     els.gTitle = h('div', { class: 'title' });
-    els.gCount = h('div', { class: 'meter', 'data-t': 'gachacount' });
-    els.gMachine = h('div', { class: 'gmachine' }, h('div', { class: 'gglass' }, h('i'), h('i'), h('i'), h('i'), h('i')),
-      h('div', { class: 'ghandle' }, '⚙️'));
-    els.gCapsule = btn('<span class="capsule big"></span>', () => app.gachaCrack(), { class: 'gcap', 'data-t': 'gachacap' });
-    els.gResult = h('div', { class: 'gresult', 'data-t': 'gacharesult' });
+    els.gCount = h('div', { class: 'meter pill', 'data-t': 'gachacount' });
+    els.gMachine = h('div', { class: 'gmachine' });
+    els.gCapsule = btn(mini('capsule', 4), () => app.gachaCrack(), { class: 'gcap', 'data-t': 'gachacap', 'aria-label': 'カプセル' });
+    els.gResult = h('div', { class: 'gresult panel', 'data-t': 'gacharesult' });
     els.gMsg = h('div', { class: 'gmsg' });
     const field = h('div', { class: 'gfield' }, els.gMachine, h('div', { class: 'gout' }, els.gMsg, els.gCapsule, els.gResult));
     els.gTurn = btn('', () => app.gachaTurn(), { class: 'go', 'data-t': 'gachaturn' });
     els.gClose = btn('とじる', () => app.gachaClose(), { class: 'end', 'data-t': 'gachaclose' });
-    els.gacha = h('div', { class: 'gacha', style: 'display:none' },
+    els.gacha = h('div', { class: 'gacha panel', style: 'display:none' },
       h('div', { class: 'ctop' }, els.gTitle, els.gCount), field, h('div', { class: 'controls' }, els.gTurn, els.gClose));
     root.append(els.gacha);
   }
@@ -2814,35 +4487,36 @@ button:disabled { opacity: .45; }
   function updateGacha(s) {
     const gp = s.gachaPlay, series = G.gacha.seriesAt(s, gp.key);
     if (!series) return;
-    const g = G.gachaLogic.seriesInfo(series), sp = S()[g.machine];
+    const g = G.gachaLogic.seriesInfo(series);
     set('gtitle', series, () => {
-      els.gTitle.innerHTML = `${sp.emoji} ${g.label}`;
-      els.gMachine.style.background = sp.color;
-      els.gMachine.style.borderColor = sp.line;
+      fill(els.gTitle, T(`{${g.machine}} ${g.label}`, { scale: 2 }));
+      els.gMachine.replaceChildren(sprite(g.machine, 3));
     });
-    const figs = G.gachaLogic.seriesFigures(series), have = figs.filter(id => G.figures.count(s, id)).length;
-    set('gcount', `${have}/${figs.length}`, v => { els.gCount.textContent = `あつめた ${v}${G.figures.count(s, g.trophy) ? ' 🏆' : ''}`; });
+    const figs = G.gachaLogic.seriesFigures(series), have = figs.filter((id) => G.figures.count(s, id)).length;
+    set('gcount', `${have}/${figs.length}`, (v) => {
+      const cup = G.figures.count(s, g.trophy) ? ' {trophy}' : '';
+      fill(els.gCount, `あつめた ${v}${cup}`);
+    });
     set('gphase', gp.phase + (gp.result ? gp.result.id : ''), () => {
       els.gMachine.classList.toggle('turning', gp.phase === 'turning');
       show(els.gCapsule, gp.phase === 'capsule');
       show(els.gResult, gp.phase === 'open');
       if (gp.phase === 'open') {
         const r = gp.result;
-        els.gResult.innerHTML = `<span class="fig">${figEmoji(r.id)}</span><b>${figLabel(r.id)}</b>` +
-          (r.isNew ? `<em>${S().newMark}</em>` : '<small>あげられるよ</small>');
+        fill(els.gResult, fig(r.id, 4), T(figLabel(r.id), { scale: 2 }),
+          r.isNew ? h('em', {}, T('NEW', { color: A().PAPER })) : T('あげられるよ'));
       }
       const msg = { ready: 'ぐるっ と まわしてね', turning: 'がちゃ がちゃ…', capsule: 'カプセルを タップ！', open: '' }[gp.phase];
-      els.gMsg.textContent = msg;
-      els.gTurn.innerHTML = `${gp.phase === 'open' ? 'もういっかい' : 'ぐるっ'}（${G.config.gachaPlayPrice}${S().coin.emoji}）`;
+      fill(els.gMsg, ...(msg ? [msg] : []));
+      fill(els.gTurn, `${gp.phase === 'open' ? 'もういっかい' : 'ぐるっ'}　{coin} ${G.config.gachaPlayPrice}`);
       show(els.gTurn, gp.phase === 'ready' || gp.phase === 'open');
     });
-    set('gafford', s.player.money >= G.config.gachaPlayPrice, v => els.gTurn.classList.toggle('dim', !v));
+    set('gafford', s.player.money >= G.config.gachaPlayPrice, (v) => els.gTurn.classList.toggle('dim', !v));
   }
 
   // フィギュアのボタン（台座つき）
   function figBtn(id, extra, fn, attrs = {}) {
-    const trophy = G.gachaLogic.kindOf(id).trophy;
-    return btn(`<span class="fig${trophy ? ' gold' : ''}">${figEmoji(id)}</span>${extra}`, fn, Object.assign({ 'data-fig': id }, attrs));
+    return btn([fig(id)].concat(extra ? [extra] : []), fn, Object.assign({ 'data-fig': id, 'aria-label': figLabel(id) }, attrs));
   }
 
   // かざる画面: 上にたなの3つの場所、下に持っているフィギュア（シリーズごと）
@@ -2852,11 +4526,11 @@ button:disabled { opacity: .45; }
     const sh = G.figures.shelfAt(s, k);
     let cur = Math.max(0, sh.indexOf(null));
     const row = h('div', { class: 'srow' });
-    const cells = sh.map((_, i) => { const c = btn('', () => { cur = i; refresh(); }, { class: 'scell', 'data-cell': i }); row.append(c); return c; });
+    const cells = sh.map((_, i) => { const c = btn([], () => { cur = i; refresh(); }, { class: 'scell', 'data-cell': i }); row.append(c); return c; });
     const list = h('div', { class: 'figlist' });
     let any = false;
     for (const g of G.config.gachaSeries) {
-      const ids = G.config.figureKinds.filter(f => f.series === g.id && G.figures.count(s, f.id)).map(f => f.id);
+      const ids = G.config.figureKinds.filter((f) => f.series === g.id && G.figures.count(s, f.id)).map((f) => f.id);
       if (!ids.length) continue;
       any = true;
       const line = h('div', { class: 'figrow' });
@@ -2870,10 +4544,10 @@ button:disabled { opacity: .45; }
     }
     if (!any) list.append(h('div', { class: 'note' }, 'ガシャを まわすと かざれるよ'));
     const refresh = () => sh.forEach((id, i) => {
-      cells[i].innerHTML = id ? `<span class="fig${G.gachaLogic.kindOf(id).trophy ? ' gold' : ''}">${figEmoji(id)}</span>` : '';
+      cells[i].replaceChildren(...(id ? [fig(id)] : []));
       cells[i].classList.toggle('now', i === cur);
     });
-    const { close } = modal(h('div', { class: 'title' }, '🖼️ かざりだな'), row, list,
+    const { close } = modal(h('div', { class: 'title' }, '{frame} かざりだな'), row, list,
       h('div', { class: 'names' }, btn('はずす', () => { app.decorate(k, cur, null); refresh(); }, { 'data-t': 'unset' }),
         btn('とじる', () => close(), { 'data-t': 'closedecorate' })));
     refresh();
@@ -2885,8 +4559,8 @@ button:disabled { opacity: .45; }
     if (!r) return;
     const list = h('div', { class: 'figrow wrap' });
     for (const id of G.figures.giftable(app.s))
-      list.append(figBtn(id, `<small>×${G.figures.count(app.s, id) - 1}</small>`, () => { close(); app.give(r, id); }));
-    const { close } = modal(h('div', { class: 'title' }, `${r.look} ${r.name}に なにを あげる？`), list,
+      list.append(figBtn(id, `×${G.figures.count(app.s, id) - 1}`, () => { close(); app.give(r, id); }));
+    const { close } = modal(h('div', { class: 'title who' }, A().personImg(r.look, { scale: 2 }), `${r.name}に なにを あげる？`), list,
       btn('やめる', () => close(), { 'data-t': 'closegive' }));
   }
 
@@ -2894,24 +4568,20 @@ button:disabled { opacity: .45; }
   function openZukan() {
     const s = app.s, rows = [];
     for (const g of G.config.gachaSeries) {
-      const figs = G.gachaLogic.seriesFigures(g.id), have = figs.filter(id => G.figures.count(s, id)).length;
+      const figs = G.gachaLogic.seriesFigures(g.id), have = figs.filter((id) => G.figures.count(s, id)).length;
       const line = h('div', { class: 'figrow' });
       for (const id of figs) {
         const n = G.figures.count(s, id);
-        line.append(h('div', { class: 'zcell' + (n ? '' : ' unknown'), 'data-zukan': id },
-          ...(n ? [h('span', { class: 'fig' }, figEmoji(id)), h('small', {}, figLabel(id))] : [h('span', { class: 'fig' }, '？'), h('small', {}, '　')]),
-          ...(n >= 2 ? [h('b', { class: 'badge' }, `×${n}`)] : [])));
+        line.append(h('div', Object.assign({ class: 'zcell' + (n ? '' : ' unknown'), 'data-zukan': id }, n ? { 'aria-label': figLabel(id) } : {}),
+          n ? fig(id) : T('？', { scale: 2 }),
+          ...(n >= 2 ? [h('b', { class: 'badge' }, T(`×${n}`, { color: A().PAPER }))] : [])));
       }
-      rows.push(h('div', { class: 'zhead' }, `${S()[g.machine].emoji} ${g.label}　${have}/${figs.length}`,
-        h('span', { class: G.figures.count(s, g.trophy) ? '' : 'dim' }, '🏆')), line);
+      const trophy = mini('trophy', 1);
+      if (!G.figures.count(s, g.trophy)) trophy.classList.add('dim');
+      rows.push(h('div', { class: 'zhead' }, `{${g.machine}} ${g.label}　${have}/${figs.length}`, trophy), line);
     }
-    const { close } = modal(h('div', { class: 'title' }, '📖 ずかん'), h('div', { class: 'zukan' }, ...rows),
+    const { close } = modal(h('div', { class: 'title' }, '{book} ずかん'), h('div', { class: 'zukan' }, ...rows),
       btn('とじる', () => close(), { 'data-t': 'closezukan' }));
-  }
-
-  function stackHTML(list) {
-    const J = S().ingredients;
-    return list.map(id => `<span style="background:${J[id].color}">${J[id].emoji}</span>`).join('');
   }
 
   // 変わったときだけ DOM を書き換える
@@ -2920,70 +4590,71 @@ button:disabled { opacity: .45; }
 
   function update() {
     const s = app.s, p = s.player, mode = app.mode;
-    set('money', p.money, v => { els.money.textContent = `${S().coin.emoji} ${v}`; });
-    set('food', p.food, v => { els.food.textContent = `${S().food.emoji} ${v}`; els.feed.disabled = v <= 0; });
-    set('hand', p.hand, v => {
-      els.hand.textContent = `${S().burger.emoji} ${v}`;
+    set('money', p.money, (v) => fill(els.money, `{coin} ${v}`));
+    set('food', p.food, (v) => { fill(els.food, `{food} ${v}`); els.feed.disabled = v <= 0; });
+    set('hand', p.hand, (v) => {
+      fill(els.hand, `{burger} ${v}`);
       els.toGo.disabled = v >= G.config.handMax;
       els.stash.disabled = v <= 0;
     });
     set('fridge', `${s.fridge},${p.hand}`, () => {
-      els.takeOut.innerHTML = `🧊 とりだす（のこり ${s.fridge}）`;
+      fill(els.takeOut, `{fridge} とりだす（のこり ${s.fridge}）`);
       els.takeOut.disabled = s.fridge <= 0 || p.hand >= G.config.handMax;
     });
     set('unlocked', s.unlocked.join(), () => { if (tab === 'furniture') buildPalette(); });
-    set('hunger', Math.ceil(p.hunger), v => {
+    set('hunger', Math.ceil(p.hunger), (v) => {
       els.bar.firstChild.style.width = (v / G.config.hungerMax * 100) + '%';
       els.bar.classList.toggle('empty', v <= 0);
     });
-    set('mode', mode, m => {
-      els.build.innerHTML = m === 'build' ? '✅ もどる' : '🔨 つくる';
+    set('mode', mode, (m) => {
+      fill(els.build, m === 'build' ? '{check} もどる' : '{hammer} つくる');
       show(els.build, m === 'walk' || m === 'build');
-      show(els.palette, m === 'build');
+      show(els.paletteBox, m === 'build');
       show(els.job, m === 'job');
       show(els.crane, m === 'crane');
       show(els.stock, m === 'stock');
       show(els.gacha, m === 'gacha');
       show(els.actions, m === 'walk');
     });
-    if (els.craneTool) set('craneAfford', p.money >= G.config.craneCost, v => els.craneTool.classList.toggle('dim', !v));
-    if (tab === 'gacha' && els.gachaTools) set('gachaAfford', p.money >= G.config.gachaCost, v => els.gachaTools.forEach(b => b.classList.toggle('dim', !v)));
-    set('tool', app.tool, t => {
+    if (els.craneTool) set('craneAfford', p.money >= G.config.craneCost, (v) => els.craneTool.classList.toggle('dim', !v));
+    if (tab === 'gacha' && els.gachaTools) set('gachaAfford', p.money >= G.config.gachaCost, (v) => els.gachaTools.forEach((b) => b.classList.toggle('dim', !v)));
+    set('tool', app.tool, (t) => {
       for (const b of els.palette.children) b.classList.toggle('on', b.dataset.tool === t);
     });
+    set('toolName', toolNames[app.tool] || '', (v) => { fill(els.toolName, ...(v ? [v] : [])); show(els.toolName, !!v); });
 
     if (mode === 'walk') {
       const near = G.residents.near(s), counter = G.shop.nearCounter(s);
-      set('near', !!near, v => show(els.talk, v));
-      set('counter', !!counter, v => { show(els.buy, v); show(els.work, v); show(els.toGo, v); });
-      set('price', G.config.burgerPrice, v => {
-        els.buy.innerHTML = `🍔 かう（${v}）`;
-        els.toGo.innerHTML = `${S().toGo.emoji} もちかえる（${v}）`;
+      set('near', !!near, (v) => show(els.talk, v));
+      set('counter', !!counter, (v) => { show(els.buy, v); show(els.work, v); show(els.toGo, v); });
+      set('price', G.config.burgerPrice, (v) => {
+        fill(els.buy, `{burger} かう　{coin} ${v}`);
+        fill(els.toGo, `{toGo} もちかえる　{coin} ${v}`);
       });
-      set('eat', p.hand > 0, v => show(els.eat, v));
-      set('furnShop', !!G.furnitureShop.nearShop(s), v => show(els.furnShop, v));
+      set('eat', p.hand > 0, (v) => show(els.eat, v));
+      set('furnShop', !!G.furnitureShop.nearShop(s), (v) => show(els.furnShop, v));
       const f = G.furniture.near(s), kind = f && G.furniture.kindOf(f.kind);
-      set('furnAct', kind && kind.action ? f.kind : '', v => {
+      set('furnAct', kind && kind.action ? f.kind : '', (v) => {
         show(els.furnAct, !!v);
-        if (v) els.furnAct.innerHTML = `${S().furniture[v].react} ${kind.action}`;
+        if (v) fill(els.furnAct, `{${S().furniture[v].reactMini}} ${kind.action}`);
       });
-      set('nearFridge', !!f && f.kind === 'fridge', v => { show(els.stash, v); show(els.takeOut, v); });
+      set('nearFridge', !!f && f.kind === 'fridge', (v) => { show(els.stash, v); show(els.takeOut, v); });
       const pet = G.pets.near(s);
-      set('petShop', !!G.petShop.nearPetShop(s), v => show(els.petShop, v));
-      set('pet', !!pet, v => { show(els.pat, v); show(els.feed, v); show(els.follow, v); });
-      set('follow', pet ? pet.follow : null, v => { els.follow.innerHTML = v ? '🏠 おうちにいて' : '🐾 ついてきて'; });
+      set('petShop', !!G.petShop.nearPetShop(s), (v) => show(els.petShop, v));
+      set('pet', !!pet, (v) => { show(els.pat, v); show(els.feed, v); show(els.follow, v); });
+      set('follow', pet ? pet.follow : null, (v) => fill(els.follow, v ? '{home} おうちにいて' : '{paw} ついてきて'));
       const ck = G.crane.near(s);
-      set('craneNear', !!ck, v => show(els.cranePlay, v));
-      set('cranePrice', G.config.cranePlayPrice, v => { els.cranePlay.innerHTML = `${S().crane.emoji} あそぶ（${v}）`; });
-      set('cranePlayDim', ck ? !!G.crane.playBlock(s, ck) : false, v => els.cranePlay.classList.toggle('dim', v));
+      set('craneNear', !!ck, (v) => show(els.cranePlay, v));
+      set('cranePrice', G.config.cranePlayPrice, (v) => fill(els.cranePlay, `{crane} あそぶ　{coin} ${v}`));
+      set('cranePlayDim', ck ? !!G.crane.playBlock(s, ck) : false, (v) => els.cranePlay.classList.toggle('dim', v));
       const sb = ck ? G.crane.stockBlock(s, ck) : 'full';
-      set('craneStock', sb !== 'full', v => show(els.craneStock, v));
-      set('craneStockDim', sb === 'busy', v => els.craneStock.classList.toggle('dim', v));
-      set('giveFig', !!near && G.figures.giftable(s).length > 0, v => show(els.giveFig, v));
+      set('craneStock', sb !== 'full', (v) => show(els.craneStock, v));
+      set('craneStockDim', sb === 'busy', (v) => els.craneStock.classList.toggle('dim', v));
+      set('giveFig', !!near && G.figures.giftable(s).length > 0, (v) => show(els.giveFig, v));
       const gk = G.gacha.near(s);
-      set('gachaNear', !!gk, v => show(els.gachaSpin, v));
-      set('gachaDim', gk ? !!G.gacha.openBlock(s, gk) : false, v => els.gachaSpin.classList.toggle('dim', v));
-      set('shelfNear', !!G.figures.nearShelf(s), v => show(els.decorate, v));
+      set('gachaNear', !!gk, (v) => show(els.gachaSpin, v));
+      set('gachaDim', gk ? !!G.gacha.openBlock(s, gk) : false, (v) => els.gachaSpin.classList.toggle('dim', v));
+      set('shelfNear', !!G.figures.nearShelf(s), (v) => show(els.decorate, v));
     }
 
     if (mode === 'crane' && s.cranePlay && s.cranePlay.mode === 'play') updateCrane(s);
@@ -2991,33 +4662,35 @@ button:disabled { opacity: .45; }
     if (mode === 'gacha' && s.gachaPlay) updateGacha(s);
 
     if (mode === 'job') {
-      const j = s.job, cust = s.residents.find(r => r.id === j.customerId);
-      const waitMsg = j.order ? '' : (s.residents.length ? 'おきゃくさんを まってるよ…' : 'ベッドを おくと<br>おきゃくさんが くるよ');
-      set('wait', waitMsg, v => { els.wait.innerHTML = v; show(els.wait, !!v); });
-      set('order', j.order ? j.order.join() : '', () => { els.order.innerHTML = j.order ? stackHTML(j.order) : ''; });
-      set('cust', cust ? cust.look + cust.name : '', () => { els.customer.innerHTML = cust ? `${cust.look}<div style="font-size:16px">${cust.name}</div>` : ''; });
-      set('mine', j.stack.join(), () => { els.mine.innerHTML = stackHTML(j.stack); });
-      set('give', G.burgerJob.canDeliver(j.stack, j.order), v => { els.give.disabled = !v; });
+      const j = s.job, cust = s.residents.find((r) => r.id === j.customerId);
+      const waitMsg = j.order ? '' : (s.residents.length ? 'おきゃくさんを まってるよ…' : 'ベッドを おくと\nおきゃくさんが くるよ');
+      set('wait', waitMsg, (v) => { fill(els.wait, ...(v ? [v] : [])); show(els.wait, !!v); });
+      set('order', j.order ? j.order.join() : '', () => { els.order.replaceChildren(...(j.order ? stackImgs(j.order) : [])); });
+      set('cust', cust ? cust.id + cust.name : '', () => fill(els.customer, ...(cust ? [A().personImg(cust.look, { scale: 2 }), cust.name] : [])));
+      set('mine', j.stack.join(), () => { els.mine.replaceChildren(...stackImgs(j.stack)); });
+      set('give', G.burgerJob.canDeliver(j.stack, j.order), (v) => { els.give.disabled = !v; });
     }
 
     if (app.toastUntil && performance.now() > app.toastUntil) { app.toastUntil = 0; show(els.toast, false); }
   }
 
   function toast(text, ms = 2500) {
-    els.toast.textContent = text;
+    fill(els.toast, T(text, { wrap: 26 }));
+    els.toast.setAttribute('aria-label', A().plain(text));
     show(els.toast, true);
     app.toastUntil = performance.now() + ms;
   }
 
+  // 浮かんで消える表示（2倍、白い字に濃い縁）
   function pop(text) {
-    const e = h('div', { class: 'pop' }, text);
+    const e = h('div', { class: 'pop' }, T(text, { color: A().PAPER, outline: A().INK, scale: 2 }));
     root.append(e);
     setTimeout(() => e.remove(), 1000);
   }
 
   // 画面の上に重ねる箱。戻り値の close で閉じる
   function modal(...kids) {
-    const box = h('div', { class: 'box' }, ...kids);
+    const box = h('div', { class: 'box panel' }, ...kids);
     const m = h('div', { class: 'modal' }, box);
     root.append(m);
     return { box, close: () => m.remove() };
@@ -3026,12 +4699,12 @@ button:disabled { opacity: .45; }
   function openMenu() {
     const file = h('input', { type: 'file', accept: '.json,application/json', style: 'display:none' });
     const fs = app.canFullscreen
-      ? [btn(app.isFullscreen() ? '⛶ ぜんがめんを やめる' : '⛶ ぜんがめんに する', () => { close(); app.toggleFullscreen(); }, { 'data-t': 'fullscreen' })]
+      ? [btn(app.isFullscreen() ? '{full} ぜんがめんを やめる' : '{full} ぜんがめんに する', () => { close(); app.toggleFullscreen(); }, { 'data-t': 'fullscreen' })]
       : [];
     const { close } = modal(...fs,
-      btn('📖 ずかん', () => { close(); openZukan(); }, { 'data-t': 'zukan' }),
-      btn('💾 セーブを ファイルに かきだす', () => { close(); app.exportSave(); }),
-      btn('📂 ファイルから よみこむ', () => file.click()),
+      btn('{book} ずかん', () => { close(); openZukan(); }, { 'data-t': 'zukan' }),
+      btn('{save} セーブを ファイルに かきだす', () => { close(); app.exportSave(); }),
+      btn('{load} ファイルから よみこむ', () => file.click()),
       btn('とじる', () => close()), file);
     file.addEventListener('change', async () => {
       const f = file.files[0]; if (!f) return;
@@ -3040,62 +4713,61 @@ button:disabled { opacity: .45; }
     });
   }
 
+  // 棚の1つ: 絵（下そろえ）・名前・値段
+  const shelfItem = (pic, label, price, tall) => [h('span', { class: 'pic' + (tall ? ' tall' : '') }, pic), label, price];
+
   // ペットやさんの棚: ペット8種類とえさ。お金が足りないものは押せない
   function openShelf() {
-    const c = G.config, coin = S().coin.emoji;
+    const c = G.config;
     const money = h('div', { class: 'title' });
     const grid = h('div', { class: 'shelf' });
     const items = [];
     for (const k of c.petKinds) {
-      const b = btn(`${S().pets[k.id].emoji}<small>${k.label}</small><small>${coin} ${k.price}</small>`,
-        () => { close(); openNames(k.id); }, { 'data-pet': k.id });
+      const b = btn(shelfItem(sprite(k.id), k.label, `{coin} ${k.price}`), () => { close(); openNames(k.id); }, { 'data-pet': k.id });
       items.push([b, k.price]);
       grid.append(b);
     }
-    const food = btn(`${S().food.emoji}<small>えさ</small><small>${coin} ${c.foodPrice}</small>`,
-      () => { app.buyFood(); refresh(); }, { 'data-t': 'buyfood' });
+    const food = btn(shelfItem(mini('food', 2), 'えさ', `{coin} ${c.foodPrice}`), () => { app.buyFood(); refresh(); }, { 'data-t': 'buyfood' });
     items.push([food, c.foodPrice]);
     grid.append(food);
     const refresh = () => {
       const p = app.s.player;
-      money.textContent = `ペットやさん　${coin} ${p.money}　${S().food.emoji} ${p.food}`;
+      fill(money, `ペットやさん　{coin} ${p.money}　{food} ${p.food}`);
       for (const [b, price] of items) b.disabled = p.money < price;
     };
-    const { close } = modal(money, grid, btn('とじる', () => close(), { 'data-t': 'closeshelf' }));
+    const { close } = modal(h('div', { class: 'shead' }, money, btn('とじる', () => close(), { 'data-t': 'closeshelf' })), grid);
     refresh();
   }
 
-  // かぐやさんの棚: 家具10種類。買ったものは ✅、お金が足りないものは押せない
+  // かぐやさんの棚: 家具10種類。買ったものは「かった」、お金が足りないものは押せない
   function openFurnitureShelf() {
-    const coin = S().coin.emoji;
     const money = h('div', { class: 'title' });
     const grid = h('div', { class: 'shelf' });
     const items = [];
-    for (const k of G.config.furnitureKinds.filter(k => !k.prize)) { // 景品はクレーンでしか取れない
-      const b = btn('', () => { app.buyFurniture(k.id); refresh(); }, { 'data-furn': k.id });
+    for (const k of G.config.furnitureKinds.filter((k) => !k.prize)) { // 景品はクレーンでしか取れない
+      const b = btn([], () => { app.buyFurniture(k.id); refresh(); }, { 'data-furn': k.id });
       items.push([b, k]);
       grid.append(b);
     }
     const refresh = () => {
       const s = app.s;
-      money.textContent = `かぐやさん　${coin} ${s.player.money}`;
+      fill(money, `かぐやさん　{coin} ${s.player.money}`);
       for (const [b, k] of items) {
         const owned = G.furniture.isUnlocked(s, k.id);
-        b.innerHTML = `${furnIcon(k.id)}<small>${k.label}</small><small>${owned ? '✅' : `${coin} ${k.price}`}</small>`;
+        fill(b, ...shelfItem(sprite(k.id), k.label, owned ? '{check} かった' : `{coin} ${k.price}`, true));
         b.disabled = owned || s.player.money < k.price;
       }
     };
-    const { close } = modal(money, grid, btn('とじる', () => close(), { 'data-t': 'closefurnshelf' }));
+    const { close } = modal(h('div', { class: 'shead' }, money, btn('とじる', () => close(), { 'data-t': 'closefurnshelf' })), grid);
     refresh();
   }
 
   // 名前を候補から選ぶ。選んだら買う。やめたら買わない
   function openNames(kind) {
-    const sp = S().pets[kind];
     const row = h('div', { class: 'names' });
     G.petCare.nameChoices(kind, G.rng).forEach((name, i) =>
       row.append(btn(name, () => { close(); app.buyPet(kind, name); }, { 'data-name': i })));
-    const { close } = modal(h('div', { class: 'title' }, `${sp.emoji} なまえを えらんでね`), row,
+    const { close } = modal(h('div', { class: 'title' }, `{${kind}} なまえを えらんでね`), row,
       btn('やめる', () => close(), { 'data-t': 'cancelname' }));
   }
 
@@ -3116,7 +4788,7 @@ button:disabled { opacity: .45; }
     fridgeFull: 'れいぞうこが いっぱいだよ',
     empty: 'からっぽだよ。ならべて あげよう',
   };
-  const coin = () => G.sprites.coin.emoji;
+  const coin = () => '{coin}';
   const prizeLabel = (id) => G.furniture.kindOf(id).label;
 
   const loaded = G.save.load(localStorage);
@@ -3161,10 +4833,10 @@ button:disabled { opacity: .45; }
     const r = G.residents.near(app.s);
     if (!r) return;
     const res = G.residents.talk(app.s, r);
-    let text = `${r.look} ${r.name}「${res.text}」`;
+    let text = `${r.name}「${res.text}」`;
     if (res.gift) {
       text += res.gift.isNew ? ` ${prizeLabel(res.gift.id)}が おけるように なったよ！` : ' また もらった！';
-      G.ui.pop(G.sprites.furniture[res.gift.id].emoji);
+      G.ui.pop(`{${res.gift.id}}`);
     }
     G.ui.toast(text, 3000);
     if (res.reward) G.ui.pop(`+${res.reward} ${coin()}`);
@@ -3172,7 +4844,7 @@ button:disabled { opacity: .45; }
 
   app.buy = () => {
     const res = G.shop.buy(app.s);
-    if (res.ok) { G.ui.pop('😋 もぐもぐ'); app.wasHungry = false; }
+    if (res.ok) { G.ui.pop('{yum} もぐもぐ'); app.wasHungry = false; }
     else G.ui.toast(MSG[res.why]);
   };
 
@@ -3187,18 +4859,18 @@ button:disabled { opacity: .45; }
   app.removeLayer = () => { G.burgerJob.removeLayer(app.s.job.stack); };
   app.deliver = () => {
     const res = G.shop.deliver(app.s);
-    if (res.ok) G.ui.pop(`+${res.reward} ${G.sprites.coin.emoji}`);
+    if (res.ok) G.ui.pop(`+${res.reward} ${coin()}`);
   };
 
   // ペット
   app.buyPet = (kind, name) => {
     const res = G.petShop.buyPet(app.s, kind, name);
-    if (res.ok) { G.ui.pop(G.sprites.pets[kind].emoji); G.ui.toast(`${name}が なかまに なったよ！`); }
+    if (res.ok) { G.ui.pop(`{${kind}}`); G.ui.toast(`${name}が なかまに なったよ！`); }
     else G.ui.toast(MSG[res.why]);
   };
   app.buyFood = () => {
     const res = G.petShop.buyFood(app.s);
-    if (res.ok) G.ui.pop(`+1 ${G.sprites.food.emoji}`);
+    if (res.ok) G.ui.pop('+1 {food}');
     else G.ui.toast(MSG[res.why]);
   };
   // なかよしが増えたときのお知らせ
@@ -3210,7 +4882,7 @@ button:disabled { opacity: .45; }
   app.pat = () => {
     const pet = G.pets.near(app.s);
     if (!pet) return;
-    G.ui.pop(G.sprites.heart.emoji);
+    G.ui.pop('{heart}');
     celebrate(pet, G.pets.pat(app.s, pet));
   };
   app.feed = () => {
@@ -3218,7 +4890,7 @@ button:disabled { opacity: .45; }
     if (!pet) return;
     const res = G.pets.feed(app.s, pet);
     if (!res.ok) { G.ui.toast(MSG[res.why]); return; }
-    G.ui.pop('😋');
+    G.ui.pop('{yum}');
     celebrate(pet, res);
   };
   app.toggleFollow = () => {
@@ -3231,31 +4903,31 @@ button:disabled { opacity: .45; }
   // かぐやさん・家具・冷蔵庫
   app.buyFurniture = (id) => {
     const res = G.furnitureShop.buy(app.s, id);
-    if (res.ok) { G.ui.pop(G.sprites.furniture[id].emoji || '✅'); G.ui.toast(`${res.kind.label}が おけるように なったよ！`); }
+    if (res.ok) { G.ui.pop(`{${id}}`); G.ui.toast(`${res.kind.label}が おけるように なったよ！`); }
     else G.ui.toast(MSG[res.why]);
   };
   app.toGo = () => {
     const res = G.shop.buyToGo(app.s);
-    if (res.ok) G.ui.pop(`+1 ${G.sprites.burger.emoji}`);
+    if (res.ok) G.ui.pop('+1 {burger}');
     else G.ui.toast(MSG[res.why]);
   };
   app.eatHand = () => {
-    if (G.furniture.eatHand(app.s).ok) { G.ui.pop('😋 もぐもぐ'); app.wasHungry = false; }
+    if (G.furniture.eatHand(app.s).ok) { G.ui.pop('{yum} もぐもぐ'); app.wasHungry = false; }
   };
   app.furnitureAct = () => {
     const f = G.furniture.near(app.s);
     if (!f) return;
-    G.ui.pop(G.sprites.furniture[f.kind].react);
+    G.ui.pop(`{${G.sprites.furniture[f.kind].reactMini}}`);
     if (f.kind === 'tv') app.tvGlow = { key: G.world.key(f.x, f.y), until: app.s.time + G.config.tvGlowTime };
   };
   app.stash = () => {
     const res = G.furniture.stash(app.s);
-    if (res.ok) G.ui.pop(`🧊 +${res.n}`);
+    if (res.ok) G.ui.pop(`{fridge} +${res.n}`);
     else if (MSG[res.why]) G.ui.toast(MSG[res.why]);
   };
   app.takeOut = () => {
     const res = G.furniture.takeOut(app.s);
-    if (res.ok) G.ui.pop(`+${res.n} ${G.sprites.burger.emoji}`);
+    if (res.ok) G.ui.pop(`+${res.n} {burger}`);
     else if (MSG[res.why]) G.ui.toast(MSG[res.why]);
   };
 
@@ -3320,7 +4992,7 @@ button:disabled { opacity: .45; }
   app.give = (r, id) => {
     const res = G.figures.give(app.s, r, id);
     if (!res.ok) return;
-    G.ui.toast(`${r.look} ${r.name}「わあ、${figLabel(id)}！ ありがとう」`, 3000);
+    G.ui.toast(`${r.name}「わあ、${figLabel(id)}！ ありがとう」`, 3000);
     G.ui.pop(`+${res.reward} ${coin()}`);
   };
 
@@ -3331,7 +5003,7 @@ button:disabled { opacity: .45; }
     if (e.type !== 'crane') return;
     if (!e.caught) { G.ui.toast('あとちょっと！'); return; }
     const label = prizeLabel(e.id);
-    G.ui.pop(G.sprites.furniture[e.id].emoji);
+    G.ui.pop(`{${e.id}}`);
     G.ui.toast(e.isNew ? `${label}が とれた！ ${label}が おけるように なったよ！` : `${label}が とれた！ また とれた！`, 3000);
   }
 
